@@ -1,43 +1,20 @@
 /**
  * GeminiAI.gs – Phase 2: Intelligence & Processing
- *
- * Sends normalised call notes to Gemini 1.5 Flash and returns a structured
- * JSON object containing scores, product classification, and an executive
- * summary formatted in Markdown.
- *
- * The prompt positions the model as a Senior Non-QM Underwriter to ensure
- * mortgage-specific context awareness (DSCR, ITIN, Foreign National,
- * Bank Statement, Alt Doc).
+ * * Versión optimizada con Few-Shot Training (10 ejemplos reales).
  */
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-
-// ---------------------------------------------------------------------------
-// Main scoring entry point
-// ---------------------------------------------------------------------------
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 /**
- * Analyses a single lead's call notes with Gemini 1.5 Flash.
- * @param {Object} lead  – Normalised lead object from HubSpotETL.gs
- * @returns {Object}     – AI insights object or error sentinel
+ * Main scoring entry point
  */
 function scoreLeadWithGemini(lead) {
   const prompt = _buildScoringPrompt(lead);
 
   const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }],
-      },
-    ],
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.2,       // Low temperature → deterministic, factual output
+      temperature: 0.1, // Bajamos a 0.1 para que sea súper preciso con los ejemplos
       topP: 0.8,
       maxOutputTokens: 1024,
       responseMimeType: "application/json",
@@ -79,27 +56,13 @@ function scoreLeadWithGemini(lead) {
 }
 
 /**
- * Generates a personalised follow-up email draft for a lead.
- * @param {Object} lead     – Normalised lead
- * @param {Object} insights – AI insights from scoreLeadWithGemini()
- * @returns {{ subject: string, body: string }}
+ * Personalised follow-up email draft
  */
 function generateFollowUpEmail(lead, insights) {
   const prompt = _buildEmailPrompt(lead, insights);
-
   const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.6,
-      topP: 0.9,
-      maxOutputTokens: 800,
-      responseMimeType: "application/json",
-    },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.6, responseMimeType: "application/json" },
   };
 
   const options = {
@@ -112,116 +75,64 @@ function generateFollowUpEmail(lead, insights) {
 
   try {
     const response = UrlFetchApp.fetch(GEMINI_API_URL, options);
-    if (response.getResponseCode() !== 200) {
-      return { subject: "Follow-up on your inquiry", body: "" };
-    }
+    if (response.getResponseCode() !== 200) return { subject: "Follow-up", body: "" };
     const raw = JSON.parse(response.getContentText());
-    const text = raw.candidates[0].content.parts[0].text;
-    return JSON.parse(text);
+    return JSON.parse(raw.candidates[0].content.parts[0].text);
   } catch (err) {
-    Logger.log("[GeminiAI] generateFollowUpEmail error: " + err.message);
     return { subject: "Follow-up on your inquiry", body: "" };
   }
 }
 
 // ---------------------------------------------------------------------------
-// Prompt engineering
+// Prompt Engineering con 10 Ejemplos (Training)
 // ---------------------------------------------------------------------------
 
 function _buildScoringPrompt(lead) {
-  return `You are a Senior Non-QM Mortgage Underwriter and Sales Intelligence Analyst at a specialty lending company. Your task is to analyse a broker call note and extract structured intelligence.
+  return `You are a Senior Non-QM Mortgage Underwriter. Analyse broker call notes and respond in structured JSON.
 
-## COMPANY PRODUCT CATALOGUE
-- **DSCR (Debt Service Coverage Ratio):** Investment property loans qualified by the property's rental income rather than the borrower's personal income. Ideal for real estate investors.
-- **ITIN Loans:** Mortgage products for borrowers who do not have a Social Security Number but have an Individual Taxpayer Identification Number. Common for immigrant communities.
-- **Foreign National Loans:** Mortgages for non-US citizens/residents purchasing US property. No US credit history required.
-- **Bank Statement Loans:** Self-employed borrower loans qualified using 12–24 months of business or personal bank statements instead of tax returns.
-- **Alt Doc Loans:** Alternative documentation loans for borrowers who cannot qualify with traditional income documentation (1099, asset depletion, P&L statements, etc.).
+## PRODUCT CATALOGUE
+- **DSCR:** Rental income based.
+- **ITIN:** No SSN required.
+- **Foreign National:** Non-US citizens.
+- **Bank Statement:** Self-employed, 12-24mo statements.
+- **Alt Doc:** 1099, Asset depletion, etc.
 
-## SCORING CRITERIA (Interest Score 0–100)
-- **80–100 (Hot):** Broker has a specific client ready to close, mentions loan amounts, property address, or tight timeline (< 30 days).
-- **60–79 (Warm):** Broker is actively working a client deal, discussing product fit, requesting term sheets or rates.
-- **40–59 (Lukewarm):** General inquiry about products, rates, or guidelines with no specific client mentioned.
-- **0–39 (Cold):** Exploratory conversation, no actionable opportunity, or broker is window-shopping.
+## TRAINING EXAMPLES (Follow these strictly):
+1. Input: "Broker has 3 clients with rental portfolios. Wants min DSCR ratio." 
+   Output: {"product_type": "DSCR", "interest_score": 95, "intent_level": "Hot", "loan_amount": null, "property_state": null, "urgency_indicators": "3 rental portfolios", "ai_summary": "**High Potential.** 3 rental properties."}
 
-## INTENT ESCALATION INDICATORS (boosts score)
-- Mentions a closing deadline or target close date (+15)
-- Specific loan amount cited (+10)
-- Mentions property address or state (+10)
-- References a time-sensitive client situation (+10)
-- Asks for term sheet, rate lock, or commitment letter (+15)
+2. Input: "Needs ITIN solutions for FL market. Current lender rejecting 12-mo bank statements."
+   Output: {"product_type": "ITIN", "interest_score": 90, "intent_level": "Hot", "loan_amount": null, "property_state": "FL", "urgency_indicators": "Lender rejection", "ai_summary": "**Florida Market.** Needs ITIN fix."}
 
-## CALL NOTE TO ANALYSE
+3. Input: "No-DTI is what my high net worth clients want. Send rates and portal link."
+   Output: {"product_type": "Alt Doc", "interest_score": 98, "intent_level": "Hot", "loan_amount": null, "property_state": null, "urgency_indicators": "Ready to Sign Up", "ai_summary": "**Ready to Sign Up.** Focus on No-DTI."}
+
+4. Input: "I work with other Non-QM lenders. What is your underwriting speed?"
+   Output: {"product_type": "Alt Doc", "interest_score": 65, "intent_level": "Warm", "loan_amount": null, "property_state": null, "urgency_indicators": "Comparing lenders", "ai_summary": "Evaluating speed."}
+
+5. Input: "Sounds good, specially Alt Doc. Send me a summary of star products."
+   Output: {"product_type": "Alt Doc", "interest_score": 70, "intent_level": "Warm", "loan_amount": null, "property_state": null, "urgency_indicators": "Interested in summary", "ai_summary": "Product review."}
+
+6. Input: "Client closing soon but DTI too high. Checking if No-DTI fits."
+   Output: {"product_type": "Alt Doc", "interest_score": 60, "intent_level": "Warm", "loan_amount": null, "property_state": null, "urgency_indicators": "Closing soon", "ai_summary": "High DTI fix."}
+
+7. Input: "My firm only does conventional/FHA. No Non-QM, too risky."
+   Output: {"product_type": "Unknown", "interest_score": 10, "intent_level": "Cold", "loan_amount": null, "property_state": null, "urgency_indicators": "No Non-QM", "ai_summary": "Not Interested."}
+
+8. Input: "5th person calling today for DSCR. Not looking for partners."
+   Output: {"product_type": "DSCR", "interest_score": 0, "intent_level": "Cold", "loan_amount": null, "property_state": null, "urgency_indicators": "Refused partnership", "ai_summary": "DNC."}
+
+9. Input: "Market is slow, no leads. Maybe next year."
+   Output: {"product_type": "Unknown", "interest_score": 15, "intent_level": "Cold", "loan_amount": null, "property_state": null, "urgency_indicators": "No Volume", "ai_summary": "Market slow."}
+
+10. Input: "Busy with a closing. Call me Tuesday at 10:00 AM."
+    Output: {"product_type": "Unknown", "interest_score": 50, "intent_level": "Lukewarm", "loan_amount": null, "property_state": null, "urgency_indicators": "Callback requested", "ai_summary": "Tuesday follow-up."}
+
+## CALL TO ANALYSE
 - **Contact:** ${lead.contactName}
 - **Agent:** ${lead.agentName}
-- **Call Date:** ${lead.callDate}
 - **Notes:** ${lead.rawNotes}
 
-## REQUIRED OUTPUT FORMAT
-Respond ONLY with a valid JSON object matching this exact schema (no markdown fences):
+## REQUIRED OUTPUT FORMAT (JSON ONLY)
 {
-  "product_type": "<DSCR|ITIN|Foreign National|Bank Statement|Alt Doc|Unknown>",
-  "interest_score": <integer 0-100>,
-  "intent_level": "<Hot|Warm|Lukewarm|Cold>",
-  "loan_amount": "<extracted dollar amount or null>",
-  "property_state": "<2-letter US state code or null>",
-  "urgency_indicators": "<comma-separated key phrases that signal urgency>",
-  "ai_summary": "<Executive summary in Markdown. 3–5 bullet points. Include: product fit rationale, borrower profile, urgency level, recommended next action. Keep under 200 words.>"
-}`;
-}
-
-function _buildEmailPrompt(lead, insights) {
-  return `You are a professional mortgage sales correspondent. Write a personalised follow-up email from our team to the broker after a call.
-
-## CONTEXT
-- **Broker Name:** ${lead.contactName}
-- **Product Discussed:** ${insights.product_type}
-- **Interest Score:** ${insights.interest_score}/100
-- **Intent Level:** ${insights.intent_level}
-- **Summary:** ${insights.ai_summary}
-- **Loan Amount:** ${insights.loan_amount || "not specified"}
-- **Property State:** ${insights.property_state || "not specified"}
-
-## GUIDELINES
-- Professional yet warm tone
-- Reference specific product and client situation from the call
-- Include a clear call to action (schedule a call, send docs, etc.)
-- Keep under 150 words
-- Do NOT use placeholders like [NAME] – use the actual names provided
-
-## REQUIRED OUTPUT FORMAT
-Respond ONLY with a valid JSON object (no markdown fences):
-{
-  "subject": "<compelling email subject line>",
-  "body": "<full email body text, plain text format>"
-}`;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function _validateInsights(raw) {
-  return {
-    product_type: raw.product_type || "Unknown",
-    interest_score: Math.min(100, Math.max(0, parseInt(raw.interest_score) || 0)),
-    intent_level: raw.intent_level || "Cold",
-    loan_amount: raw.loan_amount || null,
-    property_state: raw.property_state || null,
-    urgency_indicators: raw.urgency_indicators || "",
-    ai_summary: raw.ai_summary || "",
-  };
-}
-
-function _errorInsights(message) {
-  return {
-    product_type: "Unknown",
-    interest_score: 0,
-    intent_level: "Cold",
-    loan_amount: null,
-    property_state: null,
-    urgency_indicators: "",
-    ai_summary: "",
-    _error: message,
-  };
-}
+  "product_type": "<DSCR|
