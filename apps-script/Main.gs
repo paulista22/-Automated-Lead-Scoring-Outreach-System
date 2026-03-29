@@ -19,7 +19,6 @@
 
 /**
  * Main pipeline: polls HubSpot → scores with Gemini → persists → alerts → emails.
- * Designed to be called every 15 minutes by a time-based trigger.
  */
 function runPipeline() {
   Logger.log("═══════════════════════════════════════════");
@@ -42,7 +41,7 @@ function runPipeline() {
 
   Logger.log("[Main] Processing " + leads.length + " lead(s)...");
 
-  // Dedup against already-stored engagement IDs
+  // Dedup against already-stored engagement IDs to avoid double processing
   const storedIds = getStoredEngagementIds();
   const newLeads = leads.filter(function (l) { return !storedIds.has(String(l.engagementId)); });
 
@@ -62,23 +61,24 @@ function runPipeline() {
     Logger.log("─────────────────────────────────────────");
     Logger.log("[Main] Processing: " + lead.contactName + " (engagement: " + lead.engagementId + ")");
 
-    // Phase 2: AI Scoring
+    // Phase 2: AI Scoring & Insight Generation
     const insights = scoreLeadWithGemini(lead);
 
-    // Phase 3a: Persist to Google Sheets
+    // Phase 3a: Persistence & Outreach Logic
     let outreach = null;
     
-    // Logic: Only send email if interest is verified (Score > 40)
+    // Logic: Only send email if a real conversation occurred (Score > 40)
     if (shouldSendOutreach(lead, insights)) {
-      // Phase 3c: Automated Email Outreach
+      // Phase 3b: Automated Email Outreach via Gmail
       outreach = sendFollowUpEmail(lead, insights);
       if (outreach.status === "sent" || outreach.status === "draft") emailsSent++;
     }
 
+    // Save results to the Google Sheet
     appendLeadRow(lead, insights, outreach);
     processed++;
 
-    // Phase 3b: Real-time Telegram alert for hot leads
+    // Phase 3c: Real-time Telegram alert for "Hot" leads
     const alerted = notifyIfHotLead(lead, insights);
     if (alerted) hotLeadCount++;
 
@@ -102,11 +102,11 @@ function runPipeline() {
 }
 
 // ---------------------------------------------------------------------------
-// Setup helpers (run once during initial configuration)
+// Setup helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Initialises the Google Sheet with headers and formatting.
+ * Initialises the Google Sheet with correct headers.
  */
 function setupSpreadsheet() {
   ensureSheetExists();
@@ -114,7 +114,8 @@ function setupSpreadsheet() {
 }
 
 /**
- * Installs a time-based trigger to run `runPipeline` every 15 minutes.
+ * Installs a time-based trigger. 
+ * Note: You can also do this manually in the Apps Script "Triggers" menu.
  */
 function installTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
@@ -125,35 +126,23 @@ function installTrigger() {
     }
   });
 
+  const interval = CONFIG.POLL_INTERVAL_MINUTES() || 15;
   ScriptApp.newTrigger("runPipeline")
     .timeBased()
-    .everyMinutes(CONFIG.POLL_INTERVAL_MINUTES() || 15)
+    .everyMinutes(interval)
     .create();
 
-  Logger.log(
-    "[Main] Trigger installed: runPipeline every " +
-      (CONFIG.POLL_INTERVAL_MINUTES() || 15) +
-      " minute(s)."
-  );
+  Logger.log("[Main] Trigger installed: runPipeline every " + interval + " minutes.");
 }
 
 /**
- * Removes all project triggers.
- */
-function uninstallTrigger() {
-  const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(function (t) { ScriptApp.deleteTrigger(t); });
-  Logger.log("[Main] All triggers removed.");
-}
-
-/**
- * Validates configuration and connectivity.
+ * Validates configuration and connectivity for all services.
  */
 function validateSetup() {
   Logger.log("[Main] Validating setup...");
 
   try {
-    // CORRECTED: Use Access Token instead of API Key
+    // CORRECTED: Reference to Access Token property
     const token = CONFIG.HUBSPOT_ACCESS_TOKEN();
     Logger.log("[Main] ✓ HUBSPOT_ACCESS_TOKEN is set (" + token.substring(0, 8) + "...)");
   } catch (e) {
@@ -178,13 +167,7 @@ function validateSetup() {
   try {
     const telegramToken = CONFIG.TELEGRAM_BOT_TOKEN();
     const chatId = CONFIG.TELEGRAM_CHAT_ID();
-    Logger.log(
-      "[Main] ✓ Telegram configured (bot: " +
-        telegramToken.substring(0, 8) +
-        "... / chat: " +
-        chatId +
-        ")"
-    );
+    Logger.log("[Main] ✓ Telegram configured (bot: " + telegramToken.substring(0, 8) + "... / chat: " + chatId + ")");
   } catch (e) {
     Logger.log("[Main] ✗ Telegram error: " + e.message);
   }
