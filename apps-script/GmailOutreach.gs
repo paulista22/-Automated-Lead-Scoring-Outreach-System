@@ -35,7 +35,7 @@ function sendFollowUpEmail(lead, insights) {
   }
 
   const draftMode = CONFIG.GMAIL_DRAFT_MODE();
-  const senderAlias = CONFIG.HUBSPOT_OWNER_EMAIL();
+  const senderAlias = "rodriguezbritopaulina@gmail.com";
 
   try {
     if (draftMode) {
