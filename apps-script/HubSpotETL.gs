@@ -1,6 +1,6 @@
 /**
  * HubSpotETL.gs – Phase 1: Data Ingestion & Connectivity
- * * Extrae las llamadas de HubSpot, las limpia y las prepara para Gemini.
+ * * Extracts call logs from HubSpot, cleans them, and prepares them for Gemini AI.
  */
 
 // ---------------------------------------------------------------------------
@@ -8,15 +8,15 @@
 // ---------------------------------------------------------------------------
 
 function fetchNewCallNotes() {
-  // Traemos el intervalo de tiempo desde Config (ej. últimos 60 minutos)
+  // Retrieve the polling interval from Config (e.g., last 60 minutes)
   const intervalMinutes = CONFIG.POLL_INTERVAL_MINUTES() || 60;
   const intervalMs = intervalMinutes * 60 * 1000;
   const sinceTimestamp = Date.now() - intervalMs;
 
-  Logger.log("[HubSpotETL] Buscando llamadas desde: " + new Date(sinceTimestamp).toISOString());
+  Logger.log("[HubSpotETL] Fetching calls since: " + new Date(sinceTimestamp).toISOString());
 
   const calls = _fetchCallEngagements(sinceTimestamp);
-  Logger.log("[HubSpotETL] Llamadas encontradas: " + calls.length);
+  Logger.log("[HubSpotETL] Calls found: " + calls.length);
 
   const leads = [];
   for (const call of calls) {
@@ -24,7 +24,7 @@ function fetchNewCallNotes() {
       const lead = _normaliseCallRecord(call);
       if (lead) leads.push(lead);
     } catch (err) {
-      Logger.log("[HubSpotETL] Error normalizando llamada " + call.id + ": " + err.message);
+      Logger.log("[HubSpotETL] Error normalising call " + call.id + ": " + err.message);
     }
   }
 
@@ -80,7 +80,7 @@ function _fetchCallEngagements(sinceTimestamp) {
     const statusCode = response.getResponseCode();
 
     if (statusCode !== 200) {
-      Logger.log("[HubSpotETL] Error en API de búsqueda " + statusCode + ": " + response.getContentText());
+      Logger.log("[HubSpotETL] Search API error " + statusCode + ": " + response.getContentText());
       break;
     }
 
@@ -151,7 +151,7 @@ function _normaliseCallRecord(callRecord) {
   const props = callRecord.properties || {};
   const noteBody = (props.hs_call_body || "").trim();
 
-  // if there are not notes 
+  // If there are no notes, skip processing
   if (!noteBody) return null;
 
   const associatedContactIds = _fetchCallAssociations(callRecord.id);
@@ -179,7 +179,7 @@ function _normaliseCallRecord(callRecord) {
 // ---------------------------------------------------------------------------
 
 function _hubspotHeaders() {
-
+  // Use the Access Token stored in Script Properties
   const token = CONFIG.HUBSPOT_ACCESS_TOKEN(); 
   
   return {
@@ -187,4 +187,3 @@ function _hubspotHeaders() {
     "Content-Type": "application/json",
   };
 }
-
