@@ -1,32 +1,17 @@
 /**
  * GmailOutreach.gs – Phase 3: Automated Email Outreach
- *
- * Uses the Gmail API (via Apps Script's built-in GmailApp / MailApp) to send
- * personalised follow-up emails drafted by Gemini AI.
- *
- * Behaviour is controlled by the GMAIL_DRAFT_MODE Script Property:
- *   - false (default) → emails are sent immediately
- *   - true            → emails are saved as Gmail drafts for human review
  */
-
-// ---------------------------------------------------------------------------
-// Main outreach entry point
-// ---------------------------------------------------------------------------
 
 /**
  * Sends or drafts a personalised follow-up email for the given lead.
- * @param {Object} lead     – Normalised lead from HubSpotETL.gs
- * @param {Object} insights – AI insights from GeminiAI.gs
- * @returns {{ status: string, subject: string }} – Outreach result
  */
 function sendFollowUpEmail(lead, insights) {
-  // Skip if we have no email address
   if (!lead.contactEmail) {
     Logger.log("[GmailOutreach] No email for contact: " + lead.contactName + ". Skipping.");
     return { status: "skipped_no_email", subject: "" };
   }
 
-  // Generate personalised content via Gemini
+  // Generate personalized content via Gemini (Assuming this function is in GeminiAI.gs)
   const emailContent = generateFollowUpEmail(lead, insights);
 
   if (!emailContent.body) {
@@ -35,7 +20,15 @@ function sendFollowUpEmail(lead, insights) {
   }
 
   const draftMode = CONFIG.GMAIL_DRAFT_MODE();
-  const senderAlias = "rodriguezbritopaulina@gmail.com";
+  
+  // Use Session.getActiveUser().getEmail() to avoid "Invalid Sender" errors during demo
+  const senderEmail = Session.getActiveUser().getEmail();
+
+  const options = {
+    from: senderEmail,
+    name: "Lending Team | NuDesk", // Professional display name
+    replyTo: senderEmail
+  };
 
   try {
     if (draftMode) {
@@ -43,50 +36,35 @@ function sendFollowUpEmail(lead, insights) {
         lead.contactEmail,
         emailContent.subject,
         emailContent.body,
-        {
-          from: senderAlias,
-          name: "Lending Team",
-        }
+        options
       );
-      Logger.log(
-        "[GmailOutreach] Draft saved for: " + lead.contactEmail + " | " + emailContent.subject
-      );
+      Logger.log("[GmailOutreach] Draft saved for: " + lead.contactEmail);
       return { status: "draft", subject: emailContent.subject };
     } else {
+      // We use GmailApp.sendEmail with a generic body and the body again as a string
+      // to ensure line breaks are respected correctly.
       GmailApp.sendEmail(
         lead.contactEmail,
         emailContent.subject,
         emailContent.body,
-        {
-          from: senderAlias,
-          name: "Lending Team",
-          replyTo: senderAlias,
-        }
+        options
       );
-      Logger.log(
-        "[GmailOutreach] Email sent to: " + lead.contactEmail + " | " + emailContent.subject
-      );
+      Logger.log("[GmailOutreach] Email sent to: " + lead.contactEmail);
       return { status: "sent", subject: emailContent.subject };
     }
   } catch (err) {
-    Logger.log("[GmailOutreach] Error sending email: " + err.message);
-    return { status: "error: " + err.message, subject: emailContent.subject };
+    Logger.log("[GmailOutreach] Error in outreach: " + err.message);
+    return { status: "error", subject: emailContent.subject };
   }
 }
 
-// ---------------------------------------------------------------------------
-// Eligibility filter
-// ---------------------------------------------------------------------------
-
 /**
- * Determines whether a lead should receive an automated outreach email.
- * Only Warm and Hot leads with valid email addresses are contacted.
- * @param {Object} lead
- * @param {Object} insights
- * @returns {boolean}
+ * Eligibility filter: Only contact leads with actual interest.
  */
 function shouldSendOutreach(lead, insights) {
-  if (!lead.contactEmail) return false;
-  if (insights.interest_score < 40) return false;  // Cold leads → skip
-  return true;
+  // Logic: Must have email AND a minimum interest score (e.g., 40+)
+  const hasEmail = lead.contactEmail && lead.contactEmail.includes("@");
+  const isInterested = (insights.interest_score >= 40);
+  
+  return hasEmail && isInterested;
 }
