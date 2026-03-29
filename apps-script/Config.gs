@@ -43,8 +43,8 @@ const CONFIG = (function () {
   }
 
   return {
-    HUBSPOT_API_KEY: function () {
-      return _require("HUBSPOT_API_KEY");
+    HUBSPOT_ACCESS_TOKEN: function () {
+      return _require("HUBSPOT_ACCESS_TOKEN");
     },
     GEMINI_API_KEY: function () {
       return _require("GEMINI_API_KEY");
