@@ -1,24 +1,25 @@
 /**
  * GeminiAI.gs – Phase 2: Intelligence & Processing
- * Optimized version with Error Handling and Correct API Versioning.
+ * Corrected version by Gemini for Paulina Brito.
  */
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
 
 /**
  * Main scoring entry point
  */
 function scoreLeadWithGemini(lead) {
-  const prompt = _buildScoringPrompt(lead);
   const apiKey = CONFIG.GEMINI_API_KEY();
+  const prompt = _buildScoringPrompt(lead);
+
+  const url = `${GEMINI_API_URL}?key=${apiKey}`;
 
   const payload = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.1, 
+      temperature: 0.1,
       topP: 0.8,
-      maxOutputTokens: 1024,
-      responseMimeType: "application/json",
+      maxOutputTokens: 1024
     }
   };
 
@@ -26,43 +27,62 @@ function scoreLeadWithGemini(lead) {
     method: "post",
     contentType: "application/json",
     payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
+    muteHttpExceptions: true
   };
 
-  // Construimos la URL con la Key
-  const urlWithKey = `${GEMINI_API_URL}?key=${apiKey}`;
-
   try {
-    const response = UrlFetchApp.fetch(urlWithKey, options);
-    const statusCode = response.getResponseCode();
+    const response = UrlFetchApp.fetch(url, options);
     const responseText = response.getContentText();
+    const json = JSON.parse(responseText);
 
-    if (statusCode !== 200) {
-      Logger.log("[GeminiAI] API error " + statusCode + ": " + responseText);
-      return _errorInsights("Gemini API error " + statusCode);
+    if (!json.candidates || json.candidates.length === 0) {
+      return _errorInsights("No response from Gemini API");
     }
 
-    const raw = JSON.parse(responseText);
+    let text = json.candidates[0].content.parts[0].text;
     
-    // Verificación de seguridad por si Gemini no devuelve candidatos
-    if (!raw.candidates || raw.candidates.length === 0) {
-       return _errorInsights("No candidates returned from Gemini");
-    }
+    // Clean Markdown formatting if present
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
-    const text = raw.candidates[0].content.parts[0].text;
     const insights = JSON.parse(text);
-
     return _validateInsights(insights);
 
   } catch (err) {
-    Logger.log("[GeminiAI] FATAL ERROR: " + err.message);
-    // PLAN B: Retornamos un objeto seguro para que el Excel no se rompa
+    Logger.log("❌ GEMINI ERROR: " + err.message);
     return _errorInsights(err.message);
   }
 }
 
 /**
- * Helper to return a safe error object
+ * Builds the prompt using CLEANED notes to avoid HTML interference
+ */
+function _buildScoringPrompt(lead) {
+  // DATA CLEANING: Removes HTML tags and extra whitespace
+  const cleanNotes = (lead.rawNotes || "")
+    .replace(/<[^>]*>/g, ' ') 
+    .replace(/\s+/g, ' ')     
+    .trim();
+
+  return `You are a Senior Non-QM Mortgage Underwriter. 
+  Analyse the following broker call notes and respond ONLY with a valid JSON object.
+
+  CALL NOTES:
+  "${cleanNotes}"
+
+  REQUIRED JSON FORMAT:
+  {
+    "product_type": "DSCR | ITIN | Bank Statement | Alt Doc | Unknown",
+    "interest_score": 0-100,
+    "intent_level": "Hot | Warm | Lukewarm | Cold",
+    "loan_amount": number or null,
+    "property_state": "2-letter state code or null",
+    "urgency_indicators": "string",
+    "ai_summary": "short technical summary"
+  }`;
+}
+
+/**
+ * Provides a safe fallback object if the AI fails
  */
 function _errorInsights(message) {
   return {
@@ -72,13 +92,12 @@ function _errorInsights(message) {
     loan_amount: null,
     property_state: null,
     urgency_indicators: "Error occurred",
-    ai_summary: "System Error: " + message,
-    _error: message
+    ai_summary: "System Error: " + message
   };
 }
 
 /**
- * Ensures the AI response has all required fields before saving
+ * Ensures the response object is complete before saving to Sheets
  */
 function _validateInsights(insights) {
   return {
@@ -90,45 +109,4 @@ function _validateInsights(insights) {
     urgency_indicators: insights.urgency_indicators || "None detected",
     ai_summary: insights.ai_summary || "No summary generated"
   };
-}
-
-/**
- * Builds the scoring prompt for Gemini AI (Few-Shot Training)
- */
-function _buildScoringPrompt(lead) {
-  return `You are a Senior Non-QM Mortgage Underwriter. Analyse broker call notes and respond in structured JSON.
-
-## PRODUCT CATALOGUE
-- **DSCR:** Rental income based.
-- **ITIN:** No SSN required.
-- **Foreign National:** Non-US citizens.
-- **Bank Statement:** Self-employed, 12-24mo statements.
-- **Alt Doc:** 1099, Asset depletion, etc.
-
-## TRAINING EXAMPLES:
-1. Input: "Broker has 3 clients with rental portfolios. Wants min DSCR ratio." 
-   Output: {"product_type": "DSCR", "interest_score": 95, "intent_level": "Hot", "loan_amount": null, "property_state": null, "urgency_indicators": "3 rental portfolios", "ai_summary": "High Potential. 3 rental properties."}
-
-2. Input: "Needs ITIN solutions for FL market. Current lender rejecting 12-mo bank statements."
-   Output: {"product_type": "ITIN", "interest_score": 90, "intent_level": "Hot", "loan_amount": null, "property_state": "FL", "urgency_indicators": "Lender rejection", "ai_summary": "Florida Market. Needs ITIN fix."}
-
-3. Input: "5th person calling today for DSCR. Not looking for partners."
-   Output: {"product_type": "DSCR", "interest_score": 0, "intent_level": "Cold", "loan_amount": null, "property_state": null, "urgency_indicators": "Refused partnership", "ai_summary": "DNC."}
-
-## CALL TO ANALYSE
-- **Contact:** ${lead.contactName || "Unknown"}
-- **Notes:** ${lead.rawNotes || "No notes available"}
-
-## REQUIRED OUTPUT FORMAT (JSON ONLY)
-{
-  "product_type": "DSCR | ITIN | Foreign National | Bank Statement | Alt Doc | Unknown",
-  "interest_score": 0-100,
-  "intent_level": "Hot | Warm | Lukewarm | Cold",
-  "loan_amount": number or null,
-  "property_state": "2-letter code or null",
-  "urgency_indicators": "string",
-  "ai_summary": "string"
-}
-
-Return ONLY the JSON object. No conversational text.`;
 }
