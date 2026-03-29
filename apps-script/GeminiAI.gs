@@ -84,7 +84,7 @@ function generateFollowUpEmail(lead, insights) {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt Engineering con 10 Ejemplos (Training)
+// Prompt Engineering with 10 examples (Training)
 // ---------------------------------------------------------------------------
 
 function _buildScoringPrompt(lead) {
@@ -135,4 +135,14 @@ function _buildScoringPrompt(lead) {
 
 ## REQUIRED OUTPUT FORMAT (JSON ONLY)
 {
-  "product_type": "<DSCR|
+  "product_type": "DSCR | ITIN | Foreign National | Bank Statement | Alt Doc | Unknown",
+  "interest_score": 0-100,
+  "intent_level": "Hot | Warm | Lukewarm | Cold",
+  "loan_amount": number or null,
+  "property_state": "2-letter code or null",
+  "urgency_indicators": "string",
+  "ai_summary": "string"
+}
+
+Return ONLY the JSON. No conversational text.`;
+}
