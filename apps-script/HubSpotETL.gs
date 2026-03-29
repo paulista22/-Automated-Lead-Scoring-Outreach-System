@@ -149,9 +149,19 @@ function _fetchOwnerName(ownerId) {
 
 function _normaliseCallRecord(callRecord) {
   const props = callRecord.properties || {};
-  const noteBody = (props.hs_call_body || "").trim();
 
-  // If there are no notes, skip processing
+  // HubSpot stores hs_call_body as HTML rich text; strip tags to get plain text.
+  const noteBody = (props.hs_call_body || "")
+    .replace(/<[^>]*>/g, " ")  // remove all HTML tags
+    .replace(/&nbsp;/g, " ")   // decode common HTML entities
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")      // collapse whitespace
+    .trim();
+
+  // If there are no meaningful notes after cleaning, skip processing
   if (!noteBody) return null;
 
   const associatedContactIds = _fetchCallAssociations(callRecord.id);

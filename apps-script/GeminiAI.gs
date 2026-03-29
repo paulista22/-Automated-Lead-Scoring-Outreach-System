@@ -3,12 +3,20 @@
  * Corrected version by Gemini for Paulina Brito.
  */
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
+// v1beta is the documented stable path for gemini-1.5-flash
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 /**
  * Main scoring entry point
  */
 function scoreLeadWithGemini(lead) {
+  // Guard: skip API call entirely when there are no notes to analyse
+  const notes = (lead.rawNotes || "").trim();
+  if (!notes) {
+    Logger.log("[GeminiAI] No notes to analyse for: " + (lead.contactName || "unknown"));
+    return _errorInsights("No call notes to analyse");
+  }
+
   const apiKey = CONFIG.GEMINI_API_KEY();
   const prompt = _buildScoringPrompt(lead);
 
@@ -32,15 +40,30 @@ function scoreLeadWithGemini(lead) {
 
   try {
     const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
     const responseText = response.getContentText();
+
+    // Log non-200 responses immediately for easier debugging
+    if (responseCode !== 200) {
+      Logger.log("[GeminiAI] HTTP " + responseCode + " from Gemini API: " + responseText);
+      return _errorInsights("Gemini API returned HTTP " + responseCode);
+    }
+
     const json = JSON.parse(responseText);
 
     if (!json.candidates || json.candidates.length === 0) {
-      return _errorInsights("No response from Gemini API");
+      // Surface the safety-block reason if present
+      const blockReason =
+        json.promptFeedback && json.promptFeedback.blockReason
+          ? json.promptFeedback.blockReason
+          : "unknown";
+      Logger.log("[GeminiAI] No candidates returned. blockReason: " + blockReason);
+      Logger.log("[GeminiAI] Full response: " + responseText);
+      return _errorInsights("No response from Gemini API (blockReason: " + blockReason + ")");
     }
 
     let text = json.candidates[0].content.parts[0].text;
-    
+
     // Clean Markdown formatting if present
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
