@@ -2,10 +2,7 @@
  * Notifications.gs – Phase 3: Real-Time Alerting
  *
  * Sends an instant Telegram notification to the designated manager chat
- * whenever a lead's interest_score exceeds the HOT_LEAD_THRESHOLD (default 80).
- *
- * Telegram Bot API reference:
- *   POST https://api.telegram.org/bot{TOKEN}/sendMessage
+ * whenever a lead's interest_score exceeds the HOT_LEAD_THRESHOLD.
  */
 
 // ---------------------------------------------------------------------------
@@ -14,22 +11,13 @@
 
 /**
  * Evaluates a lead's score and fires a Telegram alert if it is a Hot Lead.
- * @param {Object} lead     – Normalised lead object
- * @param {Object} insights – AI insights from GeminiAI.gs
- * @returns {boolean}       – true if alert was sent
  */
 function notifyIfHotLead(lead, insights) {
-  const threshold = CONFIG.HOT_LEAD_THRESHOLD();
+  const threshold = CONFIG.HOT_LEAD_THRESHOLD() || 80;
 
   if (insights.interest_score < threshold) return false;
 
-  Logger.log(
-    "[Notifications] Hot lead detected: " +
-      lead.contactName +
-      " (score: " +
-      insights.interest_score +
-      ")"
-  );
+  Logger.log("[Notifications] Hot lead detected: " + lead.contactName + " (score: " + insights.interest_score + ")");
 
   const message = _buildTelegramMessage(lead, insights, threshold);
   return _sendTelegramMessage(message);
@@ -39,11 +27,6 @@ function notifyIfHotLead(lead, insights) {
 // Telegram API
 // ---------------------------------------------------------------------------
 
-/**
- * Sends a Markdown-formatted message to the configured Telegram chat.
- * @param {string} message – The text to send (supports Telegram Markdown v2)
- * @returns {boolean}      – true on success
- */
 function _sendTelegramMessage(message) {
   const token = CONFIG.TELEGRAM_BOT_TOKEN();
   const chatId = CONFIG.TELEGRAM_CHAT_ID();
@@ -52,7 +35,7 @@ function _sendTelegramMessage(message) {
   const payload = {
     chat_id: chatId,
     text: message,
-    parse_mode: "Markdown",
+    parse_mode: "Markdown", // Using standard Markdown for better stability
     disable_web_page_preview: true,
   };
 
@@ -68,12 +51,7 @@ function _sendTelegramMessage(message) {
     const statusCode = response.getResponseCode();
 
     if (statusCode !== 200) {
-      Logger.log(
-        "[Notifications] Telegram API error " +
-          statusCode +
-          ": " +
-          response.getContentText()
-      );
+      Logger.log("[Notifications] Telegram API error " + statusCode + ": " + response.getContentText());
       return false;
     }
 
@@ -91,48 +69,47 @@ function _sendTelegramMessage(message) {
 
 function _buildTelegramMessage(lead, insights, threshold) {
   const scoreBar = _buildScoreBar(insights.interest_score);
+  
+  // Use Eastern Time as typical for US Mortgage markets, or adjust to your preference
   const callDate = lead.callDate
     ? new Date(lead.callDate).toLocaleString("en-US", { timeZone: "America/New_York" })
     : "N/A";
 
-  // Keep special Markdown characters escaped for Telegram
-  const name = _escapeMarkdown(lead.contactName);
-  const agent = _escapeMarkdown(lead.agentName);
-  const product = _escapeMarkdown(insights.product_type);
-  const urgency = _escapeMarkdown(insights.urgency_indicators || "—");
-  const loanAmt = _escapeMarkdown(insights.loan_amount || "Not specified");
-  const state = _escapeMarkdown(insights.property_state || "Not specified");
+  // We only escape basic Markdown characters to prevent formatting errors
+  const name = _cleanForMarkdown(lead.contactName);
+  const agent = _cleanForMarkdown(lead.agentName);
+  const summary = _cleanForMarkdown(insights.ai_summary || "No summary available.");
 
   return (
-    "🔥 *HOT LEAD ALERT* (Score ≥ " +
-    threshold +
-    ")\n\n" +
+    "🔥 *HOT LEAD ALERT* (Score ≥ " + threshold + ")\n\n" +
     "*Contact:* " + name + "\n" +
+    "📞 *Phone:* " + phone + "\n" + 
     "*Agent:* " + agent + "\n" +
-    "*Product:* " + product + "\n" +
+    "*Product:* " + (insights.product_type || "Unknown") + "\n" +
     "*Score:* " + insights.interest_score + "/100 " + scoreBar + "\n" +
-    "*Intent:* " + insights.intent_level + "\n" +
-    "*Loan Amount:* " + loanAmt + "\n" +
-    "*Property State:* " + state + "\n" +
+    "*Intent:* " + (insights.intent_level || "Warm") + "\n" +
+    "*Loan Amount:* " + (insights.loan_amount || "Not specified") + "\n" +
+    "*Property State:* " + (insights.property_state || "N/A") + "\n" +
     "*Call Date:* " + callDate + "\n" +
-    "*Urgency Signals:* " + urgency + "\n\n" +
-    "📋 *Summary:*\n" +
-    _escapeMarkdown(insights.ai_summary || "No summary available.")
+    "*Urgency:* " + (insights.urgency_indicators || "—") + "\n\n" +
+    "📋 *AI Summary:*\n" + summary
   );
 }
 
 /**
- * Builds a simple ASCII progress bar for the score.
+ * Builds a simple visual progress bar for the score.
  */
 function _buildScoreBar(score) {
-  const filled = Math.round(score / 10);
-  return "▓".repeat(filled) + "░".repeat(10 - filled);
+  const filledCount = Math.min(Math.max(Math.round(score / 10), 0), 10);
+  return "▓".repeat(filledCount) + "░".repeat(10 - filledCount);
 }
 
 /**
- * Escapes special characters for Telegram Markdown (legacy mode).
+ * Basic cleaner for standard Telegram Markdown.
+ * Only removes characters that could break the bold/italic formatting.
  */
-function _escapeMarkdown(text) {
+function _cleanForMarkdown(text) {
   if (!text) return "";
-  return String(text).replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
+  // In standard Markdown mode, we just need to make sure we don't have stray asterisks or underscores
+  return String(text).replace(/[*_]/g, ""); 
 }
