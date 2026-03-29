@@ -1,6 +1,6 @@
 /**
  * GeminiAI.gs – Phase 2: Intelligence & Processing
- * * Versión optimizada con Few-Shot Training (10 ejemplos reales).
+ * * Optimized version using Few-Shot Training (10 real-world examples).
  */
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
@@ -14,7 +14,7 @@ function scoreLeadWithGemini(lead) {
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.1, // Bajamos a 0.1 para que sea súper preciso con los ejemplos
+      temperature: 0.1, // Set to 0.1 for high precision based on the training examples
       topP: 0.8,
       maxOutputTokens: 1024,
       responseMimeType: "application/json",
@@ -84,9 +84,12 @@ function generateFollowUpEmail(lead, insights) {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt Engineering with 10 examples (Training)
+// Prompt Engineering with 10 Examples (Training)
 // ---------------------------------------------------------------------------
 
+/**
+ * Builds the scoring prompt for Gemini AI
+ */
 function _buildScoringPrompt(lead) {
   return `You are a Senior Non-QM Mortgage Underwriter. Analyse broker call notes and respond in structured JSON.
 
@@ -129,9 +132,9 @@ function _buildScoringPrompt(lead) {
     Output: {"product_type": "Unknown", "interest_score": 50, "intent_level": "Lukewarm", "loan_amount": null, "property_state": null, "urgency_indicators": "Callback requested", "ai_summary": "Tuesday follow-up."}
 
 ## CALL TO ANALYSE
-- **Contact:** ${lead.contactName}
-- **Agent:** ${lead.agentName}
-- **Notes:** ${lead.rawNotes}
+- **Contact:** ${lead.contactName || "Unknown"}
+- **Agent:** ${lead.agentName || "Unknown"}
+- **Notes:** ${lead.rawNotes || "No notes available"}
 
 ## REQUIRED OUTPUT FORMAT (JSON ONLY)
 {
@@ -144,5 +147,5 @@ function _buildScoringPrompt(lead) {
   "ai_summary": "string"
 }
 
-Return ONLY the JSON. No conversational text.`;
+Return ONLY the JSON object. No conversational text.`;
 }
