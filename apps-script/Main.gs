@@ -67,6 +67,8 @@ function runPipeline() {
 
     // Phase 3a: Persist to Google Sheets
     let outreach = null;
+    
+    // Logic: Only send email if interest is verified (Score > 40)
     if (shouldSendOutreach(lead, insights)) {
       // Phase 3c: Automated Email Outreach
       outreach = sendFollowUpEmail(lead, insights);
@@ -105,7 +107,6 @@ function runPipeline() {
 
 /**
  * Initialises the Google Sheet with headers and formatting.
- * Safe to run multiple times – will not overwrite existing data.
  */
 function setupSpreadsheet() {
   ensureSheetExists();
@@ -114,10 +115,8 @@ function setupSpreadsheet() {
 
 /**
  * Installs a time-based trigger to run `runPipeline` every 15 minutes.
- * Deletes any existing triggers for the same function first (idempotent).
  */
 function installTrigger() {
-  // Remove existing triggers for runPipeline to avoid duplicates
   const triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(function (trigger) {
     if (trigger.getHandlerFunction() === "runPipeline") {
@@ -126,21 +125,20 @@ function installTrigger() {
     }
   });
 
-  // Install fresh trigger
   ScriptApp.newTrigger("runPipeline")
     .timeBased()
-    .everyMinutes(CONFIG.POLL_INTERVAL_MINUTES())
+    .everyMinutes(CONFIG.POLL_INTERVAL_MINUTES() || 15)
     .create();
 
   Logger.log(
     "[Main] Trigger installed: runPipeline every " +
-      CONFIG.POLL_INTERVAL_MINUTES() +
+      (CONFIG.POLL_INTERVAL_MINUTES() || 15) +
       " minute(s)."
   );
 }
 
 /**
- * Removes all project triggers (use to fully stop the pipeline).
+ * Removes all project triggers.
  */
 function uninstallTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
@@ -150,23 +148,23 @@ function uninstallTrigger() {
 
 /**
  * Validates configuration and connectivity.
- * Run this after setting Script Properties to verify the setup.
  */
 function validateSetup() {
   Logger.log("[Main] Validating setup...");
 
   try {
-    const apiKey = CONFIG.HUBSPOT_API_KEY();
-    Logger.log("[Main] ✓ HUBSPOT_API_KEY is set (" + apiKey.substring(0, 8) + "...)");
+    // CORRECTED: Use Access Token instead of API Key
+    const token = CONFIG.HUBSPOT_ACCESS_TOKEN();
+    Logger.log("[Main] ✓ HUBSPOT_ACCESS_TOKEN is set (" + token.substring(0, 8) + "...)");
   } catch (e) {
-    Logger.log("[Main] ✗ " + e.message);
+    Logger.log("[Main] ✗ HubSpot Token error: " + e.message);
   }
 
   try {
     const geminiKey = CONFIG.GEMINI_API_KEY();
     Logger.log("[Main] ✓ GEMINI_API_KEY is set (" + geminiKey.substring(0, 8) + "...)");
   } catch (e) {
-    Logger.log("[Main] ✗ " + e.message);
+    Logger.log("[Main] ✗ Gemini Key error: " + e.message);
   }
 
   try {
@@ -178,18 +176,18 @@ function validateSetup() {
   }
 
   try {
-    const token = CONFIG.TELEGRAM_BOT_TOKEN();
+    const telegramToken = CONFIG.TELEGRAM_BOT_TOKEN();
     const chatId = CONFIG.TELEGRAM_CHAT_ID();
     Logger.log(
       "[Main] ✓ Telegram configured (bot: " +
-        token.substring(0, 8) +
+        telegramToken.substring(0, 8) +
         "... / chat: " +
         chatId +
         ")"
     );
   } catch (e) {
-    Logger.log("[Main] ✗ " + e.message);
+    Logger.log("[Main] ✗ Telegram error: " + e.message);
   }
 
-  Logger.log("[Main] Validation complete. Check logs above for any errors.");
+  Logger.log("[Main] Validation complete.");
 }
