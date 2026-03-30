@@ -33,7 +33,7 @@ load_dotenv()
 # ── Page config ───────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Lead Scoring Dashboard",
+    page_title="Lead Scoring & Call Analytics Dashboard",
     page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -122,7 +122,7 @@ def _render_sidebar(df: pd.DataFrame) -> pd.DataFrame:
         "https://img.icons8.com/fluency/96/bank-building.png",
         width=60,
     )
-    st.sidebar.title("Lead Scoring System")
+    st.sidebar.title("Lead Scoring & Call Analytics Dashboard")
     st.sidebar.caption("Non-QM Mortgage Intelligence")
     st.sidebar.divider()
 
