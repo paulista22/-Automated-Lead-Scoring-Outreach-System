@@ -3,68 +3,66 @@
  */
 
 /**
- * Sends or drafts a personalised follow-up email for the given lead.
+ * GmailOutreach.gs – Versión con Personalización Automática
  */
+
 function sendFollowUpEmail(lead, insights) {
-  if (!lead.contactEmail) {
+  if (!lead.contactEmail || lead.contactEmail === "N/A") {
     Logger.log("[GmailOutreach] No email for contact: " + lead.contactName + ". Skipping.");
     return { status: "skipped_no_email", subject: "" };
   }
 
-  // Generate personalized content via Gemini (Assuming this function is in GeminiAI.gs)
-  const emailContent = generateFollowUpEmail(lead, insights);
+  // 1. OBTENEMOS EL CUERPO GENERADO POR GEMINI
+  let emailBody = insights.suggested_email_body;
+  const emailSubject = `Follow-up: Your ${insights.product_type || "Mortgage"} Inquiry`;
 
-  if (!emailContent.body) {
-    Logger.log("[GmailOutreach] Empty email body generated. Skipping.");
-    return { status: "skipped_empty_body", subject: emailContent.subject };
+  if (!emailBody || emailBody === "No email drafted") {
+    return { status: "skipped_empty_body", subject: emailSubject };
   }
 
-  const draftMode = CONFIG.GMAIL_DRAFT_MODE();
-  
-  // Use Session.getActiveUser().getEmail() to avoid "Invalid Sender" errors during demo
+  // 2. --- AUTOMATIC REPLACEMENT LOGIC (MAIL MERGE) ---
+  // Replace client name placeholders
+  emailBody = emailBody.replace(/\[Broker Name\]/gi, lead.contactName);
+  emailBody = emailBody.replace(/\[Contact Name\]/gi, lead.contactName);
+  emailBody = emailBody.replace(/\[Customer Name\]/gi, lead.contactName);
+
+  // Replace agent name placeholder
+  const myName = lead.agentName || "Lending Team";
+  emailBody = emailBody.replace(/\[Your Name\]/gi, myName);
+  emailBody = emailBody.replace(/\[Agent Name\]/gi, myName);
+
+  // 3. SEND CONFIGURATION
+  const draftMode = CONFIG.GMAIL_DRAFT_MODE(); 
   const senderEmail = Session.getActiveUser().getEmail();
 
   const options = {
-    from: senderEmail,
-    name: "Lending Team | NuDesk", // Professional display name
+    name: "Lending Team",
     replyTo: senderEmail
   };
 
   try {
     if (draftMode) {
-      GmailApp.createDraft(
-        lead.contactEmail,
-        emailContent.subject,
-        emailContent.body,
-        options
-      );
+      GmailApp.createDraft(lead.contactEmail, emailSubject, emailBody, options);
       Logger.log("[GmailOutreach] Draft saved for: " + lead.contactEmail);
-      return { status: "draft", subject: emailContent.subject };
+      return { status: "draft", subject: emailSubject, body: emailBody };
     } else {
-      // We use GmailApp.sendEmail with a generic body and the body again as a string
-      // to ensure line breaks are respected correctly.
-      GmailApp.sendEmail(
-        lead.contactEmail,
-        emailContent.subject,
-        emailContent.body,
-        options
-      );
+      GmailApp.sendEmail(lead.contactEmail, emailSubject, emailBody, options);
       Logger.log("[GmailOutreach] Email sent to: " + lead.contactEmail);
-      return { status: "sent", subject: emailContent.subject };
+      return { status: "sent", subject: emailSubject, body: emailBody };
     }
   } catch (err) {
     Logger.log("[GmailOutreach] Error in outreach: " + err.message);
-    return { status: "error", subject: emailContent.subject };
+    return { status: "error", subject: emailSubject };
   }
 }
 
 /**
- * Eligibility filter: Only contact leads with actual interest.
+ * Eligibility filter: Only contact leads with real interest (Score > 40)
  */
 function shouldSendOutreach(lead, insights) {
-  // Logic: Must have email AND a minimum interest score (e.g., 40+)
   const hasEmail = lead.contactEmail && lead.contactEmail.includes("@");
-  const isInterested = (insights.interest_score >= 40);
+  // Adjust this threshold to control outreach aggressiveness
+  const isInterested = (insights.interest_score >= 40); 
   
   return hasEmail && isInterested;
 }

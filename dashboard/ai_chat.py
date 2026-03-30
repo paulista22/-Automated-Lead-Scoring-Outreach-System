@@ -1,48 +1,33 @@
 """
 ai_chat.py – Gemini-powered "Talk to your Data" assistant.
-
-Implements semantic search over the leads DataFrame so managers can ask
-natural language questions like:
-  "Show me all DSCR loans in Texas above $500k"
-  "Which agents have the most hot leads this week?"
-  "Find loans for foreigners" → correctly maps to Foreign National product
-
-The assistant uses Gemini 1.5 Flash with the full data context injected
-into each request (works within the free tier for typical sheet sizes).
+Synchronized with Google Sheets columns and optimized for mortgage sales intelligence.
 """
 
 import json
 import os
 from typing import Optional
-
 import pandas as pd
 from google import genai
 from google.genai import types
 
 # ── Gemini configuration ──────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """You are an expert mortgage sales intelligence assistant embedded in a BI dashboard.
-You have deep knowledge of Non-QM mortgage products:
-- DSCR: Investment property loans qualifying on rental income
-- ITIN: Mortgages for borrowers with Individual Taxpayer Identification Numbers (immigrant community)
-- Foreign National: Loans for non-US citizens/residents (no US credit history required)
-- Bank Statement: Self-employed borrowers using 12-24 months bank statements
-- Alt Doc: Alternative documentation loans (1099, asset depletion, P&L)
+Your goal is to analyze lead data and provide actionable insights for mortgage managers.
 
-You will receive:
-1. A natural language question from a mortgage sales manager
-2. A JSON summary of the leads data
+Knowledge Base (Non-QM Products):
+- DSCR: Investment property loans based on rental income.
+- ITIN: Loans for borrowers using an ITIN instead of an SSN.
+- Foreign National: Mortgages for non-US residents/citizens.
+- Bank Statement/Alt Doc: Loans for self-employed using alternative documentation.
 
-Provide a concise, actionable answer. Use markdown formatting.
-Always interpret queries semantically:
-  - "loans for foreigners" = Foreign National product
-  - "self-employed" = Bank Statement or Alt Doc
-  - "investors" = DSCR
-  - "immigrants" or "no SSN" = ITIN
+Guidelines:
+1. Interpret queries semantically: "investors" = DSCR, "foreigners" = Foreign National, etc.
+2. Provide concise, professional answers using Markdown formatting.
+3. If specific figures (Loan Amounts, Scores) are requested, extract them accurately from the data.
 """
-
 
 def create_chat_response(
     question: str,
@@ -50,41 +35,27 @@ def create_chat_response(
     api_key: str,
     chat_history: Optional[list] = None,
 ) -> str:
-    """
-    Generates a Gemini AI response to a natural language question about the leads data.
+    """Generates a Gemini AI response based on the leads DataFrame context."""
+    
+    if not api_key:
+        return "⚠️ Error: GEMINI_API_KEY not found in .env file."
 
-    Parameters
-    ----------
-    question : str
-        The manager's question.
-    df : pd.DataFrame
-        The full leads DataFrame (or a recent slice).
-    api_key : str
-        Gemini API key.
-    chat_history : list, optional
-        Previous [(role, text), ...] turns for multi-turn conversation context.
-
-    Returns
-    -------
-    str
-        Markdown-formatted answer from Gemini.
-    """
     client = genai.Client(api_key=api_key)
 
-    # Build a compact data context (avoid sending raw notes to save tokens)
+    # Build the compact data context (JSON summary)
     data_context = _build_data_context(df)
 
-    # Compose the prompt
+    # Compose the prompt with data context and user question
     prompt = f"""## Current Leads Data Summary
 {data_context}
 
 ## Manager Question
 {question}"""
 
-    # Build conversation history for multi-turn context
+    # Handle conversation history for context-aware chat
     history: list[types.Content] = []
     if chat_history:
-        for role, text in chat_history[:-1]:  # Exclude the latest user message
+        for role, text in chat_history[:-1]:
             history.append(
                 types.Content(
                     role=role,
@@ -97,7 +68,7 @@ def create_chat_response(
             model=GEMINI_MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                temperature=0.5,
+                temperature=0.3, # Low temperature for higher factual accuracy
                 max_output_tokens=1024,
             ),
             history=history,
@@ -109,43 +80,50 @@ def create_chat_response(
 
 
 def _build_data_context(df: pd.DataFrame) -> str:
-    """
-    Builds a compact JSON summary of the DataFrame to inject into the prompt.
-    Keeps token count low by excluding raw notes and summaries.
-    """
+    """Builds a compact JSON summary of the DataFrame for prompt injection."""
+    
     if df.empty:
         return "No data available yet."
 
+    # These columns MUST match the mapping in your data_loader.py
     safe_cols = [
-        "Contact Name", "Agent Name", "Call Date",
-        "Product Type", "Interest Score", "Intent Level",
-        "Loan Amount", "Property State", "Email Sent",
+        "Contact Name", "Agent Name", "Call Date", 
+        "Product Type", "Interest Score", "Intent Level", 
+        "Loan Amount", "Property State", "Email Status"
     ]
+    
+    # Filter only existing columns to avoid KeyErrors
     available = [c for c in safe_cols if c in df.columns]
     subset = df[available].copy()
 
-    # Format dates as strings
+    # Clean dates for JSON serialization
     for col in subset.select_dtypes(include=["datetime64[ns]", "datetimetz"]):
-        subset[col] = subset[col].dt.strftime("%Y-%m-%d").fillna("")
+        subset[col] = subset[col].dt.strftime("%Y-%m-%d").fillna("N/A")
 
-    # Truncate to last 200 rows to stay within token limits
-    if len(subset) > 200:
-        subset = subset.tail(200)
+    # Limit to 150 records to stay within token limits while providing context
+    subset_sample = subset.tail(150)
+
+    # Safe Date Range calculation
+    try:
+        valid_dates = df["Call Date"].dropna()
+        date_from = str(valid_dates.min().date()) if not valid_dates.empty else "N/A"
+        date_to = str(valid_dates.max().date()) if not valid_dates.empty else "N/A"
+    except:
+        date_from, date_to = "N/A", "N/A"
 
     summary = {
         "total_records": len(df),
         "date_range": {
-            "from": str(df["Call Date"].min()) if "Call Date" in df.columns else "N/A",
-            "to": str(df["Call Date"].max()) if "Call Date" in df.columns else "N/A",
+            "from": date_from,
+            "to": date_to,
         },
         "score_stats": {
             "mean": round(df["Interest Score"].mean(), 1) if "Interest Score" in df.columns else 0,
             "max": int(df["Interest Score"].max()) if "Interest Score" in df.columns else 0,
-            "min": int(df["Interest Score"].min()) if "Interest Score" in df.columns else 0,
         },
         "product_distribution": df["Product Type"].value_counts().to_dict() if "Product Type" in df.columns else {},
         "intent_distribution": df["Intent Level"].value_counts().to_dict() if "Intent Level" in df.columns else {},
-        "records_sample": json.loads(subset.to_json(orient="records")),
+        "records_sample": json.loads(subset_sample.to_json(orient="records")),
     }
 
     return json.dumps(summary, indent=2, default=str)

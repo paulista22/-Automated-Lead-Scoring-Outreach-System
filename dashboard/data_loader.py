@@ -27,17 +27,16 @@ SCOPES = [
 ]
 
 SHEET_COLUMNS = [
-    "Timestamp", "Contact ID", "Contact Name", "Contact Email", "Contact Phone",
-    "Agent Name", "Call Date", "Raw Notes",
-    "Product Type", "Interest Score", "Intent Level", "Loan Amount",
-    "Property State", "Urgency Indicators", "AI Summary",
-    "Email Sent", "Email Subject", "Email Timestamp",
-    "Engagement ID", "Status", "Error Message",
+    "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone",
+    "Agent", "Call Date", "Outcome", "Raw Notes",
+    "Product", "Interest Score", "Level Intent", "Loan Amount",
+    "State", "Urgency", "AI Summary", "Is Hot Lead", 
+    "Email Body", "Email Status", "Subject", "Email Time"
 ]
 
-NUMERIC_COLS = ["Interest Score"]
-DATE_COLS = ["Timestamp", "Call Date", "Email Timestamp"]
+NUMERIC_COLS = ["Interest Score", "Loan Amount"]
 
+DATE_COLS = ["Timestamp", "Call Date", "Email Time"]
 
 # ── Main loader ───────────────────────────────────────────────────────────────
 
@@ -81,9 +80,7 @@ def load_leads_cached(spreadsheet_id: str, sheet_name: str = "Leads") -> pd.Data
 
 
 # ── Derived metrics ───────────────────────────────────────────────────────────
-
 def compute_kpis(df: pd.DataFrame) -> dict:
-    """Computes high-level KPIs from the leads DataFrame."""
     if df.empty:
         return {
             "total_leads": 0,
@@ -92,41 +89,48 @@ def compute_kpis(df: pd.DataFrame) -> dict:
             "cold_leads": 0,
             "avg_score": 0.0,
             "emails_sent": 0,
-            "conversion_rate": 0.0,
         }
 
-    hot = df[df["Intent Level"] == "Hot"]
-    warm = df[df["Intent Level"] == "Warm"]
-    cold = df[df["Intent Level"].isin(["Cold", "Lukewarm"])]
-    emails = df[df["Email Sent"].isin(["sent", "draft"])]
+    intent_col = "Intent Level" if "Intent Level" in df.columns else "Level Intent"
+    email_col = "Email Status" if "Email Status" in df.columns else "Email Sent"
+
+    intent = df[intent_col].fillna("").astype(str).str.strip().str.lower()
+    hot_count = int((intent == "hot").sum())
+    warm_count = int(intent.isin(["high", "medium", "warm", "lukewarm"]).sum())
+    cold_count = int(max(len(df) - hot_count - warm_count, 0))
+
+    emails = df[email_col].fillna("").astype(str).str.lower().isin(["sent", "draft"])
 
     return {
         "total_leads": len(df),
-        "hot_leads": len(hot),
-        "warm_leads": len(warm),
-        "cold_leads": len(cold),
+        "hot_leads": hot_count,
+        "warm_leads": warm_count,
+        "cold_leads": cold_count,
         "avg_score": round(df["Interest Score"].mean(), 1),
-        "emails_sent": len(emails),
-        "conversion_rate": round(len(hot) / len(df) * 100, 1) if len(df) > 0 else 0.0,
+        "emails_sent": int(emails.sum()),
     }
 
 
 def compute_agent_performance(df: pd.DataFrame) -> pd.DataFrame:
-    """Returns per-agent metrics sorted by average score descending."""
     if df.empty:
         return pd.DataFrame()
 
+    agent_col = "Agent Name" if "Agent Name" in df.columns else "Agent"
+    intent_col = "Intent Level" if "Intent Level" in df.columns else "Level Intent"
+    product_col = "Product Type" if "Product Type" in df.columns else "Product"
+
     agg = (
-        df.groupby("Agent Name")
+        df.groupby(agent_col)
         .agg(
-            Total_Calls=("Engagement ID", "count"),
+            Total_Calls=("Call ID", "count"),
             Avg_Score=("Interest Score", "mean"),
-            Hot_Leads=("Intent Level", lambda x: (x == "Hot").sum()),
-            Warm_Leads=("Intent Level", lambda x: (x == "Warm").sum()),
-            Products=("Product Type", lambda x: x.value_counts().index[0] if len(x.value_counts()) > 0 else "N/A"),
+            Hot_Leads=(intent_col, lambda x: (x.fillna("").astype(str).str.lower() == "hot").sum()),
+            Warm_Leads=(intent_col, lambda x: x.fillna("").astype(str).str.lower().isin(["high", "medium", "warm", "lukewarm"]).sum()),
+            Products=(product_col, lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A"),
         )
         .reset_index()
     )
+    agg = agg.rename(columns={agent_col: "Agent Name"})
     agg["Avg_Score"] = agg["Avg_Score"].round(1)
     return agg.sort_values("Avg_Score", ascending=False)
 
@@ -173,5 +177,10 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Drop fully empty rows
     df = df.dropna(how="all")
-
+    df['Intent Level'] = df['Level Intent']
+    df['Product Type'] = df['Product']
+    df['Agent Name'] = df['Agent']
+    df['Property State'] = df['State']
+    
     return df
+

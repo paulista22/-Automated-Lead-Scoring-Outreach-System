@@ -1,22 +1,8 @@
 /**
  * Config.gs – Centralised credential & configuration manager.
+ * Versión optimizada para Paulina Rodriguez Brito (Mazatlán).
  *
- * ALL sensitive values are read from Script Properties (never hard-coded).
- * To populate them: Extensions → Apps Script → Project Settings →
- * Script Properties → Add property.
- *
- * Required properties:
- *   HUBSPOT_API_KEY        – HubSpot Private App token (Bearer)
- *   GEMINI_API_KEY         – Google AI Studio API key
- *   SPREADSHEET_ID         – Google Sheets document ID
- *   TELEGRAM_BOT_TOKEN     – Telegram Bot HTTP API token
- *   TELEGRAM_CHAT_ID       – Target chat / group ID for alerts
- *   HUBSPOT_OWNER_EMAIL    – Default sender email for Gmail outreach
- *
- * Optional properties (sensible defaults are provided below):
- *   POLL_INTERVAL_MINUTES  – How far back to look for new calls (default 15)
- *   HOT_LEAD_THRESHOLD     – Minimum score to trigger Telegram alert (default 80)
- *   GMAIL_DRAFT_MODE       – "true" to save as draft instead of sending (default false)
+ * ALL sensitive values are read from Script Properties.
  */
 
 // ---------------------------------------------------------------------------
@@ -58,14 +44,12 @@ const CONFIG = (function () {
     TELEGRAM_CHAT_ID: function () {
       return _require("TELEGRAM_CHAT_ID");
     },
-    // Note: if HUBSPOT_OWNER_EMAIL is not set, emails are sent from the Google account
-    // that authorised the script. Set this property explicitly to use a consistent
-    // sender address regardless of who runs or triggers the script.
     HUBSPOT_OWNER_EMAIL: function () {
       return _optional("HUBSPOT_OWNER_EMAIL", Session.getEffectiveUser().getEmail());
     },
+    // Set to 2880 (48 hours) by default to prevent data loss due to timezone offset
     POLL_INTERVAL_MINUTES: function () {
-      return parseInt(_optional("POLL_INTERVAL_MINUTES", "15"), 10);
+      return parseInt(_optional("POLL_INTERVAL_MINUTES", "2880"), 10);
     },
     HOT_LEAD_THRESHOLD: function () {
       return parseInt(_optional("HOT_LEAD_THRESHOLD", "80"), 10);
@@ -79,46 +63,20 @@ const CONFIG = (function () {
 // ---------------------------------------------------------------------------
 // Sheet column layout – single source of truth for SheetsDB.gs
 // ---------------------------------------------------------------------------
-
-const SHEET_COLUMNS = {
-  // ── CRM Data ──────────────────────────────────────────────
-  TIMESTAMP: 1,           // A – Processing timestamp
-  CONTACT_ID: 2,          // B – HubSpot contact ID
-  CONTACT_NAME: 3,        // C – Full name
-  CONTACT_EMAIL: 4,       // D – Email
-  CONTACT_PHONE: 5,       // E – Phone
-  AGENT_NAME: 6,          // F – Sales representative
-  CALL_DATE: 7,           // G – Date/time of the call
-  RAW_NOTES: 8,           // H – Original call note (hs_note_body)
-
-  // ── AI Insights ───────────────────────────────────────────
-  PRODUCT_TYPE: 9,        // I – DSCR / ITIN / Foreign National / Bank Statement / Alt Doc
-  INTEREST_SCORE: 10,     // J – 0-100 score
-  INTENT_LEVEL: 11,       // K – Hot / Warm / Cold
-  LOAN_AMOUNT: 12,        // L – Extracted loan amount
-  PROPERTY_STATE: 13,     // M – Property state
-  URGENCY_INDICATORS: 14, // N – Key urgency phrases
-  AI_SUMMARY: 15,         // O – Markdown executive summary
-
-  // ── Outreach ──────────────────────────────────────────────
-  EMAIL_SENT: 16,         // P – true / false / draft
-  EMAIL_SUBJECT: 17,      // Q – Email subject
-  EMAIL_TIMESTAMP: 18,    // R – When email was sent/drafted
-
-  // ── Metadata ──────────────────────────────────────────────
-  ENGAGEMENT_ID: 19,      // S – HubSpot engagement ID (dedup key)
-  STATUS: 20,             // T – Processing status (ok / error)
-  ERROR_MSG: 21,          // U – Error message if any
-};
+const LEADS_SHEET_NAME = "Leads";
 
 const SHEET_HEADERS = [
-  "Timestamp", "Contact ID", "Contact Name", "Contact Email", "Contact Phone",
-  "Agent Name", "Call Date", "Raw Notes",
-  "Product Type", "Interest Score", "Intent Level", "Loan Amount",
-  "Property State", "Urgency Indicators", "AI Summary",
-  "Email Sent", "Email Subject", "Email Timestamp",
-  "Engagement ID", "Status", "Error Message",
+  "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone", 
+  "Agent", "Call Date", "Outcome", "Raw Notes", "Product", "Interest Score", 
+  "Intent Level", "Loan Amount", "State", "Urgency", "AI Summary", 
+  "Is Hot Lead", "Email Body", "Email Status", "Subject", "Email Time"
 ];
 
-// Sheet name inside the Spreadsheet
-const LEADS_SHEET_NAME = "Leads";
+const SHEET_COLUMNS = {
+  TIMESTAMP: 1, CONTACT_ID: 2, ENGAGEMENT_ID: 3, CONTACT_NAME: 4, 
+  CONTACT_EMAIL: 5, CONTACT_PHONE: 6, AGENT_NAME: 7, CALL_DATE: 8, 
+  CALL_OUTCOME: 9, RAW_NOTES: 10, PRODUCT_TYPE: 11, INTEREST_SCORE: 12, 
+  INTENT_LEVEL: 13, LOAN_AMOUNT: 14, PROPERTY_STATE: 15, URGENCY_INDICATORS: 16, 
+  AI_SUMMARY: 17, IS_HOT_LEAD: 18, EMAIL_BODY: 19, EMAIL_SENT: 20, 
+  EMAIL_SUBJECT: 21, EMAIL_TIMESTAMP: 22
+};

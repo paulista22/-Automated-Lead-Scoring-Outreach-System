@@ -167,7 +167,7 @@ function validateSetup() {
   try {
     const telegramToken = CONFIG.TELEGRAM_BOT_TOKEN();
     const chatId = CONFIG.TELEGRAM_CHAT_ID();
-    Logger.log("[Main] ✓ Telegram configured (bot: " + telegramToken.substring(0, 8) + "... / chat: " + chatId + ")");
+    Logger.log("[Main] ✓ Telegram configured (bot: " + telegramToken. substring(0, 8) + "... / chat: " + chatId + ")");
   } catch (e) {
     Logger.log("[Main] ✗ Telegram error: " + e.message);
   }

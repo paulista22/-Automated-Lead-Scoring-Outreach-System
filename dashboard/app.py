@@ -62,10 +62,57 @@ def _get_config() -> dict:
 
 
 # ── Helper: load data ─────────────────────────────────────────────────────────
-
-@st.cache_data(ttl=300)  # Refresh every 5 minutes
+@st.cache_data(ttl=900)  # Refresh every 15 minutes
 def _load_data(spreadsheet_id: str) -> pd.DataFrame:
-    return load_leads_cached(spreadsheet_id)
+    # 1. Load raw data from the script that connects to Google Sheets
+    df = load_leads_cached(spreadsheet_id)
+    
+    # 2. COLUMN MAPPING (Based on actual Google Sheets column names)
+    # Left: Exact column name in Google Sheets | Right: Name used by app.py
+    column_map = {
+        'Level Intent': 'Intent Level',   # In your sheet this column is "Level Intent"
+        'Interest Score': 'Interest Score', 
+        'Product': 'Product Type',       # In your sheet this column is "Product"
+        'Contact Name': 'Contact Name',
+        'Agent': 'Agent Name',           # In your sheet this column is "Agent"
+        'Loan Amount': 'Loan Amount',
+        'State': 'Property State',
+        'AI Summary': 'AI Summary'
+    }
+    
+    # Create aliases only when the target column is missing.
+    # This keeps original names required by data_loader KPI functions.
+    for source_col, target_col in column_map.items():
+        if source_col in df.columns and target_col not in df.columns:
+            df[target_col] = df[source_col]
+
+    # Ensure core columns exist so dashboard pages never crash on missing fields.
+    required_defaults = {
+        "Call Date": pd.NaT,
+        "Interest Score": 0,
+        "Loan Amount": 0,
+        "Intent Level": "Low",
+        "Product Type": "Unknown",
+        "Agent Name": "Unknown",
+        "Contact Name": "Unknown",
+        "Property State": "N/A",
+    }
+    for col, default_value in required_defaults.items():
+        if col not in df.columns:
+            df[col] = default_value
+
+    # 3. DATA CLEANUP (Essential to prevent chart errors)
+    if not df.empty:
+        # Ensure dates are datetime objects
+        df['Call Date'] = pd.to_datetime(df['Call Date'], errors='coerce')
+        
+        # Ensure scores are numeric (in case of any stray text values)
+        df['Interest Score'] = pd.to_numeric(df['Interest Score'], errors='coerce').fillna(0)
+        
+        # Ensure loan amounts are numeric for aggregation
+        df['Loan Amount'] = pd.to_numeric(df['Loan Amount'], errors='coerce').fillna(0)
+
+    return df
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -106,8 +153,8 @@ def _render_sidebar(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.subheader("🎯 Intent Level")
     intents = st.sidebar.multiselect(
         "Select intent levels",
-        options=["Hot", "Warm", "Lukewarm", "Cold"],
-        default=["Hot", "Warm", "Lukewarm", "Cold"],
+        options=["Hot", "High", "Medium", "Low"], # <--- Your actual intent categories
+        default=["Hot", "High", "Medium", "Low"],
     )
 
     st.sidebar.divider()
@@ -245,6 +292,51 @@ def _page_kpi_dashboard(df: pd.DataFrame):
             height=350, margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor="rgba(0,0,0,0)"
         )
         st.plotly_chart(fig_line, use_container_width=True)
+
+    st.divider()
+
+    st.subheader("Outbound Calls by Outcome")
+    desired_outcomes = ["Busy", "Connected", "No Answer", "Wrong Number"]
+
+    if "Outcome" in df.columns:
+        outcome_series = (
+            df["Outcome"]
+            .astype(str)
+            .str.strip()
+            .replace({"": "Unknown"})
+        )
+
+        outcome_counts = (
+            outcome_series
+            .value_counts()
+            .reindex(desired_outcomes, fill_value=0)
+            .reset_index()
+        )
+        outcome_counts.columns = ["Outcome", "Count"]
+
+        fig_outcome = px.bar(
+            outcome_counts,
+            x="Outcome",
+            y="Count",
+            color="Outcome",
+            text="Count",
+            color_discrete_map={
+                "Busy": "#6b7280",
+                "Connected": "#10b981",
+                "No Answer": "#f59e0b",
+                "Wrong Number": "#ef4444",
+            },
+        )
+        fig_outcome.update_traces(textposition="outside")
+        fig_outcome.update_layout(
+            height=320,
+            margin=dict(l=0, r=0, t=10, b=0),
+            showlegend=False,
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_outcome, use_container_width=True)
+    else:
+        st.info("Outcome column not available in current data.")
 
 
 # ── Page 2: Agent Performance ─────────────────────────────────────────────────

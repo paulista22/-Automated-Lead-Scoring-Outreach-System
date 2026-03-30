@@ -1,222 +1,311 @@
-# Automated Lead Scoring & Outreach System
+# Automated Lead Qualification and Outreach Pipeline
 
-> **Zero-Cost AI Pipeline** for qualifying 150–200 daily Non-QM mortgage broker calls.  
-> Integrates HubSpot · Gemini 1.5 Flash · Google Sheets · Gmail · Telegram · Streamlit
+An end-to-end automation pipeline for mortgage broker call qualification, AI scoring, real-time alerts, follow-up drafting, and business intelligence reporting.
 
 ---
 
-## Architecture Overview
+## Project Overview
 
+This project automates the full operational flow from HubSpot call records to actionable sales follow-up.
+
+The pipeline ingests call data, normalizes notes, scores and classifies leads with Gemini, stores structured outputs in Google Sheets, sends hot-lead alerts via Telegram, and creates Gmail follow-up drafts for qualified opportunities.
+
+A Streamlit dashboard provides KPI tracking, outbound call outcome analysis, and a conversational AI interface for natural language queries.
+
+---
+
+## Business Problem
+
+High-volume mortgage sales teams need a repeatable way to process and prioritize broker calls.
+
+Manual handling causes:
+
+- Delayed qualification of high-intent opportunities
+- Inconsistent lead scoring and follow-up decisions
+- Slow manager visibility for urgent leads
+- Limited analytics for product demand, agent performance, and call outcomes
+
+This solution standardizes and accelerates the process with AI-assisted scoring and automated workflow orchestration.
+
+---
+
+## Architecture
+
+The pipeline operates in three integrated layers:
+
+1. Data Ingestion and Processing Layer
+2. Intelligence and Automation Layer
+3. Analytics and Decision Layer
+
+---
+
+## Project Diagram (Mermaid)
+
+```mermaid
+graph TD
+    A[HubSpot CRM<br/>Calls, Notes, Outcomes] -->|15-minute polling| B[Google Apps Script Orchestrator]
+    B --> C[ETL and Normalization<br/>HTML cleanup, outcome mapping, contact enrichment]
+    C --> D[Gemini 2.5 Flash API<br/>Scoring, intent classification, summaries]
+    D --> E[Structured JSON Output<br/>Score, intent, product, summary, follow-up draft]
+    E --> F[Google Sheets<br/>Persistent operational dataset]
+    E --> G[Telegram Bot API<br/>Hot Lead Alert]
+    E --> H[Gmail API<br/>Follow-up Draft]
+    F --> I[Streamlit Dashboard<br/>KPIs, outbound outcomes, AI chat]
 ```
-HubSpot CRM  ──(15-min poll)──▶  Google Apps Script  ──▶  Gemini 1.5 Flash
-                                         │                       │
-                                         │                  JSON Insights
-                                         │            (score, product, summary)
-                                         ▼                       │
-                                  Google Sheets ◀────────────────┘
-                                         │
-                  ┌──────────────────────┼────────────────────┐
-                  ▼                      ▼                     ▼
-            Gmail Outreach        Telegram Alert         Streamlit BI
-          (personalised email)  (score ≥ 80 → HOT)    (KPIs, AI chat)
-```
 
-## Tech Stack (Zero-Cost)
+---
 
-| Component | Technology |
+## Methodology
+
+### Phase 1: Data Ingestion and ETL
+
+Trigger: Time-based scheduler (every 15 minutes).
+
+- API Poll: Query HubSpot engagements/calls endpoint for new records since last poll.
+- Field Extraction:
+  - hs_call_body (agent notes)
+  - hs_call_outcome (call result: Connected, Busy, No Answer, etc.)
+  - hubspot_owner_id (agent who took the call)
+  - hs_timestamp (call date/time)
+- Data Normalization:
+  - Remove HTML tags and special characters
+  - Map HubSpot outcome UUIDs to readable strings
+  - Fetch associated contact details (name, email, phone)
+  - Apply title case formatting for consistency
+- Deduplication: Check against stored engagement IDs to prevent double-processing.
+- Output: Normalized lead object passed to AI scoring.
+
+### Phase 2: AI Scoring and Intelligence
+
+Model: Gemini 2.5 Flash.
+
+System prompt design positions the model as a Non-QM mortgage expert for product identification, semantic intent analysis, and follow-up support.
+
+Scoring logic:
+
+- 80-100 (Hot): Ready to transact, multiple clients mentioned, explicit product request
+- 60-79 (High): Clear interest, specific product fit, near-term pipeline
+- 30-59 (Medium): General interest, comparing options, slow pipeline
+- 0-29 (Low): No volume, conventional-only borrowers, declined partnership
+
+Output: JSON response with structured fields for downstream automation.
+
+### Phase 3: Real-Time Alerting and Outreach
+
+#### 3a. Hot Lead Detection
+
+- If interest_score >= 80, trigger Telegram alert.
+- Message includes contact name, phone, agent name, product, score, state, and AI summary.
+- Target delivery: under 2 seconds.
+
+#### 3b. Email Automation
+
+- If interest_score >= 40, generate follow-up email.
+- AI-drafted body personalizes:
+  - Broker name (mail merge from call notes)
+  - Agent name (who took the call)
+  - Product type (detected from conversation)
+  - Next steps (based on AI analysis)
+- Two modes:
+  - Draft Mode (Current): Email saved as draft in Gmail for review
+  - Auto-Send Mode (Future): Direct transmission after manager approval
+
+#### 3c. Data Persistence
+
+All records are appended to Google Sheets, including:
+
+- id_llamada (engagement ID, prevents duplicates)
+- fecha_registro (call date)
+- nombre_broker (contact name)
+- email_broker (contact email)
+- nota_original (raw call notes)
+- interest_score (AI score 0-100)
+- intent_level (Hot/High/Medium/Low)
+- product_detectado (DSCR, ITIN, Foreign National, etc.)
+- resumen_markdown (executive summary)
+- cuerpo_email_generado (email draft)
+- status_seguimiento (Pending/Sent/Draft/Error)
+
+### Phase 4: Analytics and Visualization
+
+Dashboard layer: Streamlit (Python).
+
+KPI Dashboard:
+
+- Lead conversion funnel (calls -> qualified -> hot)
+- Interest score distribution histogram
+- Product demand pie chart
+- Geographic heatmap (state-level analysis)
+- Outbound Calls by Outcome chart (Busy, Connected, No Answer, Wrong Number)
+
+Agent Performance:
+
+- Average score per agent
+- Email sent/draft count
+- Product specialization analysis
+
+Market Insights:
+
+- Product trends over time
+- Seasonal demand patterns
+- Broker engagement metrics
+
+AI Chat Interface:
+
+- Semantic search over lead database
+- Natural language queries (example: Show me all DSCR leads in Texas)
+- Conversational AI powered by Gemini
+
+---
+
+## Skills and Tools Applied
+
+| Category | Tool/Framework | Purpose |
+|---|---|---|
+| CRM Integration | HubSpot API (REST) | Source system for call records |
+| Orchestration | Google Apps Script (JavaScript) | ETL, workflow automation, middleware |
+| AI/ML | Gemini 2.5 Flash API | Lead scoring, NLP, text generation |
+| Email Automation | Gmail API | Draft/send follow-up emails |
+| Real-Time Alerts | Telegram Bot API | Instant notifications for hot leads |
+| Database | Google Sheets (via gspread) | Central repository, analytics source |
+| Dashboard | Streamlit (Python) | Interactive KPI visualization |
+| Data Processing | pandas, plotly | Data manipulation, charting |
+| Authentication | OAuth 2.0, API Keys | Secure credential management |
+| Error Handling | Logging, try-catch | Pipeline resilience |
+
+### Technical Architecture Highlights
+
+- Prompt Engineering: Specialized prompts guide Gemini to classify Non-QM products with high consistency
+- JSON Schema Enforcement: Structured output prevents mapping and parsing errors
+- Deduplication Logic: Engagement ID tracking prevents reprocessing
+- Timezone Handling: Supports Mazatlan timezone (GMT-7) for operational timestamp consistency
+- Mail Merge Templates: Dynamic placeholder replacement for personalized outreach
+- API Rate Control: Configurable polling intervals and request pacing to respect quotas
+
+---
+
+## System Components
+
+### A. Google Apps Script Modules
+
+| File | Function | Responsibility |
+|---|---|---|
+| Main.gs | runPipeline() | Orchestrates all phases in sequence |
+| Config.gs | CONFIG object | Centralized credential manager |
+| HubSpotETL.gs | fetchNewCallNotes() | Polls HubSpot API and normalizes call data |
+| GeminiAI.gs | scoreLeadWithGemini() | Sends notes to Gemini and parses JSON response |
+| GmailOutreach.gs | sendFollowUpEmail() | Composes and sends/saves follow-up drafts |
+| Notifications.gs | notifyIfHotLead() | Triggers Telegram alerts for urgent leads |
+| SheetsDB.gs | appendLeadRow() | Persists structured records to Google Sheets |
+
+### B. Python Dashboard
+
+| File | Purpose |
 |---|---|
-| CRM | HubSpot Free Tier |
-| Orchestrator | Google Apps Script (JavaScript) |
-| AI / NLP | Gemini 1.5 Flash API |
-| Database | Google Sheets |
-| Email Outreach | Gmail API via Apps Script |
-| Hot-Lead Alerts | Telegram Bot API |
-| BI Dashboard | Streamlit (Python) |
+| app.py | Main Streamlit app with KPI, performance, explorer, and AI chat tabs |
+| data_loader.py | Google Sheets connector, schema mapping, KPI computation |
+| ai_chat.py | Gemini integration for conversational analytics |
+| requirements.txt | Python dependencies |
 
 ---
 
-## Repository Structure
-
-```
-├── apps-script/                # Google Apps Script (runs inside Google's cloud)
-│   ├── appsscript.json         # Project manifest & OAuth scopes
-│   ├── Config.gs               # Credential manager (Script Properties)
-│   ├── HubSpotETL.gs           # Phase 1 – HubSpot polling & normalisation
-│   ├── GeminiAI.gs             # Phase 2 – AI scoring, NLP, email drafting
-│   ├── SheetsDB.gs             # Phase 3 – Google Sheets persistence
-│   ├── Notifications.gs        # Phase 3 – Telegram hot-lead alerts
-│   ├── GmailOutreach.gs        # Phase 3 – Automated email outreach
-│   └── Main.gs                 # Orchestrator + time-based trigger
-│
-└── dashboard/                  # Streamlit BI Dashboard (Phase 4)
-    ├── app.py                  # Main application (4 tabs)
-    ├── data_loader.py          # Google Sheets reader + KPI computation
-    ├── ai_chat.py              # Gemini "Talk to your Data" assistant
-    └── requirements.txt        # Python dependencies
-```
-
----
-
-## Setup Guide
+## Setup and Configuration
 
 ### Prerequisites
 
-- Google account with access to Google Drive, Sheets, Gmail, and Apps Script
-- HubSpot account (Free tier) with a Private App configured
-- Google AI Studio API key ([aistudio.google.com](https://aistudio.google.com))
-- Telegram Bot token ([BotFather](https://t.me/BotFather)) + target chat ID
+- HubSpot Private App access token
+- Gemini API key
+- Google Sheet ID
+- Telegram bot token and chat ID
+- Python 3.9+ runtime
 
----
+### Apps Script Configuration
 
-### Part 1 – Google Apps Script (Pipeline Engine)
+Required Script Properties:
 
-#### 1.1 Create the Apps Script Project
+- HUBSPOT_ACCESS_TOKEN
+- GEMINI_API_KEY
+- SPREADSHEET_ID
+- TELEGRAM_BOT_TOKEN
+- TELEGRAM_CHAT_ID
 
-1. Go to [script.google.com](https://script.google.com) → **New project**
-2. Name it `Lead Scoring Pipeline`
-3. Copy each `.gs` file from `apps-script/` into the project:
-   - Click **+** → **Script file** for each `.gs` file
-   - Copy/paste the file contents
-4. Replace the default `appsscript.json` (Editor → Project Settings → Show appsscript.json) with the contents of `apps-script/appsscript.json`
+Optional Script Properties:
 
-#### 1.2 Configure Script Properties
+- POLL_INTERVAL_MINUTES
+- HOT_LEAD_THRESHOLD
+- GMAIL_DRAFT_MODE
+- HUBSPOT_OWNER_EMAIL
 
-Go to **Extensions → Apps Script → Project Settings → Script Properties** and add:
-
-| Property | Description |
-|---|---|
-| `HUBSPOT_API_KEY` | HubSpot Private App token (starts with `pat-`) |
-| `GEMINI_API_KEY` | Google AI Studio API key |
-| `SPREADSHEET_ID` | Google Sheets document ID (from the URL) |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot HTTP API token |
-| `TELEGRAM_CHAT_ID` | Target Telegram chat or group ID |
-| `HUBSPOT_OWNER_EMAIL` | *(Optional)* Sender email for outreach |
-| `POLL_INTERVAL_MINUTES` | *(Optional)* Poll frequency, default `15` |
-| `HOT_LEAD_THRESHOLD` | *(Optional)* Alert threshold, default `80` |
-| `GMAIL_DRAFT_MODE` | *(Optional)* `true` to save drafts instead of sending |
-
-#### 1.3 Create the Google Sheet
-
-1. Create a new Google Sheet
-2. Copy the Sheet ID from its URL: `https://docs.google.com/spreadsheets/d/**{SHEET_ID}**/edit`
-3. Set `SPREADSHEET_ID` in Script Properties
-
-#### 1.4 Initial Setup
-
-Run these functions once from the Apps Script editor:
+Initial one-time setup:
 
 ```javascript
-// 1. Validate all credentials are configured correctly
-validateSetup()
-
-// 2. Create the Leads sheet with formatted headers
-setupSpreadsheet()
-
-// 3. Install the 15-minute polling trigger
-installTrigger()
+validateSetup();
+setupSpreadsheet();
+installTrigger();
 ```
 
-The pipeline will now run automatically every 15 minutes.
+### Dashboard Configuration
 
----
-
-### Part 2 – Streamlit Dashboard (BI Layer)
-
-#### 2.1 Install Dependencies
+Install dependencies:
 
 ```bash
 cd dashboard
 pip install -r requirements.txt
 ```
 
-#### 2.2 Configure Credentials
-
-Create a `.env` file in the `dashboard/` directory:
+Set environment variables in dashboard/.env:
 
 ```env
-SPREADSHEET_ID=your_google_sheet_id
-GEMINI_API_KEY=your_gemini_api_key
-GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
+SPREADSHEET_ID=your_sheet_id
+GEMINI_API_KEY=your_gemini_key
+GOOGLE_SERVICE_ACCOUNT_JSON={...}
 ```
 
-**Google Service Account setup:**
-1. Go to [Google Cloud Console](https://console.cloud.google.com) → IAM & Admin → Service Accounts
-2. Create a service account → generate a JSON key
-3. Paste the entire JSON as the value of `GOOGLE_SERVICE_ACCOUNT_JSON`
-4. Share your Google Sheet with the service account email (Viewer access)
-
-#### 2.3 Run Locally
+Run dashboard:
 
 ```bash
 cd dashboard
 streamlit run app.py
 ```
 
-#### 2.4 Deploy to Streamlit Cloud (Free)
+---
 
-1. Push this repository to GitHub
-2. Go to [streamlit.io/cloud](https://streamlit.io/cloud) → **New app**
-3. Select the repository and set **Main file path** to `dashboard/app.py`
-4. Add all environment variables under **Advanced settings → Secrets**
+## Security and Data Governance
+
+- Credentials are managed via Apps Script Script Properties and dashboard environment variables.
+- Pipeline communication uses authenticated API calls across controlled services.
+- Access to spreadsheet data and execution contexts is permission-based.
+
+### Confidentiality Statement
+
+Data processed through this API-based workflow is not used to train public Google models.
+
+This guarantees confidentiality for brokers and their clients while enabling secure AI-driven lead scoring, summaries, and outreach draft generation.
 
 ---
 
-## Dashboard Features
+## Results
 
-### 📊 KPI Dashboard
-- Total / Hot / Warm / Cold lead counts
-- Conversion funnel (calls → qualified leads)
-- Interest score distribution with hot-lead threshold line
-- Product type breakdown (pie chart)
-- Daily leads volume by intent level (stacked bar)
+This pipeline delivers:
 
-### 🏆 Agent Performance
-- Per-agent scorecard: total calls, avg score, hot/warm leads, top product
-- Horizontal bar charts: avg score and hot-lead conversion rate
-- Score trend over time per agent (line chart)
-
-### 📋 Lead Explorer
-- Full-text search across name, product, state, and call notes
-- Sortable table with colour-coded intent levels
-- Detailed single-lead view with AI summary and email status
-
-### 🤖 AI Assistant ("Talk to your Data")
-- Natural language queries powered by Gemini 1.5 Flash
-- Semantic search: "loans for foreigners" → Foreign National leads
-- Multi-turn conversation with context
-- Suggested starter questions
+- Faster identification of high-intent leads
+- More consistent and auditable scoring decisions
+- Immediate manager visibility through real-time alerting
+- Higher follow-up consistency through AI-generated drafts
+- Centralized call tracking and analytics in one dashboard
 
 ---
 
-## Non-QM Product Reference
+## Live Demo Links
 
-The AI scoring engine is trained to identify and classify these products:
+Add your public links here before publishing:
 
-| Product | Borrower Profile |
-|---|---|
-| **DSCR** | Real estate investors; qualified on rental income |
-| **ITIN** | Borrowers with Individual Taxpayer ID (no SSN) |
-| **Foreign National** | Non-US citizens purchasing US property |
-| **Bank Statement** | Self-employed; 12–24 months bank statements |
-| **Alt Doc** | 1099 earners, asset depletion, P&L qualified |
+- Dashboard URL: `https://your-dashboard-url.streamlit.app`
+- Demo Video (Google Drive): `https://drive.google.com/file/d/your-video-id/view`
 
-### Scoring Thresholds
+Recommended note for reviewers:
 
-| Score Range | Intent Level | Action |
-|---|---|---|
-| 80–100 | 🔴 Hot | Telegram alert + immediate email |
-| 60–79 | 🟠 Warm | Personalised email outreach |
-| 40–59 | 🟡 Lukewarm | Email outreach |
-| 0–39 | ⚪ Cold | No outreach (logged only) |
-
----
-
-## Security & Data Governance
-
-- **Credential Protection:** All API keys stored in Google Apps Script **Script Properties** – encrypted server-side, never in source code.
-- **Processing Privacy:** Data is processed within Google's infrastructure. Sensitive broker information is never exposed to third parties.
-- **Enterprise AI Standards:** Gemini API (not consumer Chat) – data processed via API is not used to train public models.
-- **Access Control:** Google Sheet is accessible only to explicitly authorized Google accounts/service accounts.
+"If the dashboard is sleeping (free hosting), please wait a few seconds for startup."
 
 ---
 
