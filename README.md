@@ -131,8 +131,8 @@ This pipeline delivers:
 
 ## 🔗 Live Demo Links
 
-- 🌐 **Dashboard URL:** `https://your-dashboard-url.streamlit.app`
-- 🎥 **Demo Video:** [Link to Google Drive/YouTube]
+- 🌐 **Dashboard URL:** `http://localhost:8501/#average-score-by-agent`
+- 🎥 **Demo Video and project screenshots:** [https://drive.google.com/drive/folders/1Lvd27KYWmpc1rhwGUaXuVUh2xbOT2hAc?usp=sharing]
 
 ---
 
