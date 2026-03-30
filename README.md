@@ -131,7 +131,7 @@ This pipeline delivers:
 
 ## 🔗 Live Demo Links
 
-- 🌐 **Dashboard URL:** `http://localhost:8501/#average-score-by-agent`
+- 🌐 **Dashboard URL:** `https://mlk6lubyq5heayck77lego.streamlit.app/ `
 - 🎥 **Demo Video and project screenshots:** [https://drive.google.com/drive/folders/1Lvd27KYWmpc1rhwGUaXuVUh2xbOT2hAc?usp=sharing]
 
 ---
