@@ -89,7 +89,7 @@ def _build_data_context(df: pd.DataFrame) -> str:
     safe_cols = [
         "Contact Name", "Agent Name", "Call Date", 
         "Product Type", "Interest Score", "Intent Level", 
-        "Loan Amount", "Property State", "Email Status"
+        "Loan Amount", "Country/Region", "Email Status"
     ]
     
     # Filter only existing columns to avoid KeyErrors

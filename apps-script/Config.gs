@@ -66,17 +66,17 @@ const CONFIG = (function () {
 const LEADS_SHEET_NAME = "Leads";
 
 const SHEET_HEADERS = [
-  "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone", 
-  "Agent", "Call Date", "Outcome", "Raw Notes", "Product", "Interest Score", 
-  "Intent Level", "Loan Amount", "State", "Urgency", "AI Summary", 
+  "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone",
+  "Country/Region", "Agent", "Call Date", "Outcome", "Raw Notes", "Product",
+  "Interest Score", "Intent Level", "Loan Amount", "Urgency", "AI Summary",
   "Is Hot Lead", "Email Body", "Email Status", "Subject", "Email Time"
 ];
 
 const SHEET_COLUMNS = {
-  TIMESTAMP: 1, CONTACT_ID: 2, ENGAGEMENT_ID: 3, CONTACT_NAME: 4, 
-  CONTACT_EMAIL: 5, CONTACT_PHONE: 6, AGENT_NAME: 7, CALL_DATE: 8, 
-  CALL_OUTCOME: 9, RAW_NOTES: 10, PRODUCT_TYPE: 11, INTEREST_SCORE: 12, 
-  INTENT_LEVEL: 13, LOAN_AMOUNT: 14, PROPERTY_STATE: 15, URGENCY_INDICATORS: 16, 
+  TIMESTAMP: 1, CONTACT_ID: 2, ENGAGEMENT_ID: 3, CONTACT_NAME: 4,
+  CONTACT_EMAIL: 5, CONTACT_PHONE: 6, COUNTRY_REGION: 7, AGENT_NAME: 8,
+  CALL_DATE: 9, CALL_OUTCOME: 10, RAW_NOTES: 11, PRODUCT_TYPE: 12,
+  INTEREST_SCORE: 13, INTENT_LEVEL: 14, LOAN_AMOUNT: 15, URGENCY_INDICATORS: 16,
   AI_SUMMARY: 17, IS_HOT_LEAD: 18, EMAIL_BODY: 19, EMAIL_SENT: 20, 
   EMAIL_SUBJECT: 21, EMAIL_TIMESTAMP: 22
 };

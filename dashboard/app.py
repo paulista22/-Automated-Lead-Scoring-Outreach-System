@@ -76,7 +76,6 @@ def _load_data(spreadsheet_id: str) -> pd.DataFrame:
         'Contact Name': 'Contact Name',
         'Agent': 'Agent Name',           # In your sheet this column is "Agent"
         'Loan Amount': 'Loan Amount',
-        'State': 'Property State',
         'AI Summary': 'AI Summary'
     }
     
@@ -95,7 +94,7 @@ def _load_data(spreadsheet_id: str) -> pd.DataFrame:
         "Product Type": "Unknown",
         "Agent Name": "Unknown",
         "Contact Name": "Unknown",
-        "Property State": "N/A",
+        "Country/Region": "N/A",
     }
     for col, default_value in required_defaults.items():
         if col not in df.columns:
@@ -452,7 +451,7 @@ def _page_lead_explorer(df: pd.DataFrame):
             lambda row: any(
                 search.lower() in str(val).lower()
                 for val in [row.get("Contact Name", ""), row.get("Product Type", ""),
-                            row.get("Property State", ""), row.get("Raw Notes", "")]
+                            row.get("Country/Region", ""), row.get("Raw Notes", "")]
             ),
             axis=1,
         )
@@ -461,7 +460,7 @@ def _page_lead_explorer(df: pd.DataFrame):
     # Display columns
     display_cols = [
         "Contact Name", "Agent Name", "Call Date", "Product Type",
-        "Interest Score", "Intent Level", "Loan Amount", "Property State",
+        "Interest Score", "Intent Level", "Loan Amount", "Country/Region",
         "Email Sent",
     ]
     available_cols = [c for c in display_cols if c in df.columns]
@@ -489,7 +488,7 @@ def _page_lead_explorer(df: pd.DataFrame):
             st.write(f"**Intent:** {lead_row.get('Intent Level', 'N/A')}")
             st.write(f"**Agent:** {lead_row.get('Agent Name', 'N/A')}")
             st.write(f"**Loan Amount:** {lead_row.get('Loan Amount', 'N/A')}")
-            st.write(f"**State:** {lead_row.get('Property State', 'N/A')}")
+            st.write(f"**Country/Region:** {lead_row.get('Country/Region', 'N/A')}")
             st.write(f"**Urgency Signals:** {lead_row.get('Urgency Indicators', 'N/A')}")
         with col2:
             st.write("**AI Summary:**")
