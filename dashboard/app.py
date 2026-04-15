@@ -70,6 +70,7 @@ def _load_data(spreadsheet_id: str) -> pd.DataFrame:
     # 2. COLUMN MAPPING (Based on actual Google Sheets column names)
     # Left: Exact column name in Google Sheets | Right: Name used by app.py
     column_map = {
+        'Timestamp': 'Call Date',
         'Level Intent': 'Intent Level',   # In your sheet this column is "Level Intent"
         'Interest Score': 'Interest Score', 
         'Product': 'Product Type',       # In your sheet this column is "Product"
