@@ -281,12 +281,12 @@ def _page_kpi_dashboard(df: pd.DataFrame):
             y="Count",
             color="Intent Level",
             color_discrete_map={
-                "Hot": "#ef4444",
-                "Warm": "#f59e0b",
-                "Lukewarm": "#3b82f6",
-                "Cold": "#6b7280",
-            },
-            barmode="stack",
+                "Hot": "#ef4444",    # Rojo para Hot
+                "High": "#f59e0b",   # Naranja para High
+                "Medium": "#3b82f6", # Azul para Medium
+                "Low": "#6b7280",    # Gris para Low
+           },
+           barmode="stack",
         )
         fig_line.update_layout(
             height=350, margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor="rgba(0,0,0,0)"
