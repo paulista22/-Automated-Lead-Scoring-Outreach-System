@@ -28,9 +28,9 @@ SCOPES = [
 
 SHEET_COLUMNS = [
     "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone",
-    "Agent", "Call Date", "Outcome", "Raw Notes",
+    "Country/Region", "Agent", "Call Date", "Outcome", "Raw Notes",
     "Product", "Interest Score", "Level Intent", "Loan Amount",
-    "State", "Urgency", "AI Summary", "Is Hot Lead", 
+    "Urgency", "AI Summary", "Is Hot Lead",
     "Email Body", "Email Status", "Subject", "Email Time"
 ]
 
@@ -180,7 +180,7 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df['Intent Level'] = df['Level Intent']
     df['Product Type'] = df['Product']
     df['Agent Name'] = df['Agent']
-    df['Property State'] = df['State']
+    df['Country/Region'] = df['Country/Region']
     
     return df
 

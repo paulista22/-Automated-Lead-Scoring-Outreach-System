@@ -86,7 +86,7 @@ function _buildTelegramMessage(lead, insights, threshold) {
     "👔 *Agent:* " + agent + "\n" +
     "🏠 *Product:* " + (insights.product_type || "Unknown") + "\n" +
     "📊 *Score:* " + insights.interest_score + "/100 " + scoreBar + "\n" +
-    "📍 *State:* " + (insights.property_state || "N/A") + "\n" +
+    "🌍 *Country/Region:* " + (insights.country_region || "N/A") + "\n" +
     "⏰ *Date:* " + callDate + "\n" +
     "⚠️ *Urgency:* " + (insights.urgency_indicators || "—") + "\n\n" +
     "📋 *AI Summary:*\n" + summary

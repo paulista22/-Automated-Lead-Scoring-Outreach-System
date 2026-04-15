@@ -51,14 +51,14 @@ function _normaliseCallRecord(callRecord) {
 
   if (!outcome) {
     if (rawOutcome === "" || rawOutcome === "no outcome set") {
-      outcome = (props.hs_call_status === "COMPLETED") ? "Connected" : "No Option Selected";
+      outcome = "No Option Selected";
     } else {
       outcome = rawOutcome.charAt(0).toUpperCase() + rawOutcome.slice(1).replace(/_/g, " ");
     }
   }
 
   // 3. CONTACT DATA & NAME NORMALIZATION
-  let contactName = "Unknown Contact", contactEmail = "N/A", contactPhone = "N/A", contactId = "";
+  let contactName = "Unknown Contact", contactEmail = "N/A", contactPhone = "N/A", contactId = "", countryRegion = "N/A";
   const associatedIds = _fetchCallAssociations(callRecord.id);
   
   if (associatedIds && associatedIds.length > 0) {
@@ -70,6 +70,7 @@ function _normaliseCallRecord(callRecord) {
       
       contactEmail = contactProps.email || "N/A";
       contactPhone = contactProps.phone || "N/A";
+      countryRegion = contactProps.country || contactProps.hs_country_region || "N/A";
     }
   }
 
@@ -91,9 +92,10 @@ function _normaliseCallRecord(callRecord) {
     contactPhone: contactPhone,
     // We also apply Title Case to the Agent Name for consistency
     agentName: _toTitleCase(_fetchOwnerName(props.hubspot_owner_id)),
-    callDateObj: callDate, 
-    callOutcome: outcome, 
-    rawNotes: noteBody
+    callDateObj: callDate,
+    callOutcome: outcome,
+    rawNotes: noteBody,
+    countryRegion: countryRegion
   };
 }
 
@@ -118,7 +120,7 @@ function _fetchCallAssociations(callId) {
 }
 
 function _fetchContactDetails(contactId) {
-  const url = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email,phone`;
+  const url = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email,phone,country,hs_country_region`;
   const response = UrlFetchApp.fetch(url, { method: "get", headers: _hubspotHeaders(), muteHttpExceptions: true });
   return response.getResponseCode() === 200 ? JSON.parse(response.getContentText()).properties : null;
 }

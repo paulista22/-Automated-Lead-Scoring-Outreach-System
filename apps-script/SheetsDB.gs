@@ -80,23 +80,23 @@ function appendLeadRow(lead, insights, outreach) {
   row[SHEET_COLUMNS.CONTACT_NAME - 1]      = lead.contactName || "";
   row[SHEET_COLUMNS.CONTACT_EMAIL - 1]     = lead.contactEmail || "";
   row[SHEET_COLUMNS.CONTACT_PHONE - 1]     = lead.contactPhone || "";
+  row[SHEET_COLUMNS.COUNTRY_REGION - 1]    = lead.countryRegion || "N/A";
   row[SHEET_COLUMNS.AGENT_NAME - 1]        = lead.agentName || "";
   row[SHEET_COLUMNS.CALL_DATE - 1]         = callDateStr;
   row[SHEET_COLUMNS.CALL_OUTCOME - 1]      = lead.callOutcome || ""; 
   row[SHEET_COLUMNS.RAW_NOTES - 1]         = lead.rawNotes || "";
 
-  // AI Insights
-  row[SHEET_COLUMNS.PRODUCT_TYPE - 1]      = insights.product_type || "";
-  row[SHEET_COLUMNS.INTEREST_SCORE - 1]    = insights.interest_score || 0;
-  row[SHEET_COLUMNS.INTENT_LEVEL - 1]      = insights.intent_level || "";
-  row[SHEET_COLUMNS.LOAN_AMOUNT - 1]       = insights.loan_amount || "";
-  row[SHEET_COLUMNS.PROPERTY_STATE - 1]    = insights.property_state || "";
-  row[SHEET_COLUMNS.URGENCY_INDICATORS - 1]= insights.urgency_indicators || "";
-  row[SHEET_COLUMNS.AI_SUMMARY - 1]        = insights.ai_summary_markdown || "";
+// AI Insights 
+row[SHEET_COLUMNS.PRODUCT_TYPE - 1]       = insights.product_type || "N/A";
+row[SHEET_COLUMNS.INTEREST_SCORE - 1]     = insights.interest_score || 0; 
+row[SHEET_COLUMNS.INTENT_LEVEL - 1]       = insights.intent_level || "Unknown";
+row[SHEET_COLUMNS.LOAN_AMOUNT - 1]        = insights.loan_amount || "N/A";
+row[SHEET_COLUMNS.URGENCY_INDICATORS - 1] = insights.urgency_indicators || "None detected";
+row[SHEET_COLUMNS.AI_SUMMARY - 1]         = insights.ai_summary_markdown || "No analysis available";
   
   // Automation Logic
   row[SHEET_COLUMNS.IS_HOT_LEAD - 1]       = isHotLead;
-  row[SHEET_COLUMNS.EMAIL_BODY - 1]        = insights.suggested_email_body || "";
+  row[SHEET_COLUMNS.EMAIL_BODY - 1]        = (outreach && outreach.body) ? outreach.body : (insights.suggested_email_body || "");
 
   // Email Outreach Status
   row[SHEET_COLUMNS.EMAIL_SENT - 1]        = outreach ? outreach.status : "No";
