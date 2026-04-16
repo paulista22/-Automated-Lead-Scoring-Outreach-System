@@ -50,16 +50,19 @@ The pipeline operates in three integrated layers:
 *Trigger: Time-based scheduler (every 15 minutes).* ⏰
 
 - **API Poll:** Query HubSpot engagements/calls endpoint for new records.
-- **Field Extraction:** `hs_call_body`, `hs_call_outcome`, `hubspot_owner_id`, and `hs_timestamp`.
+- **Field Extraction:**  `hs_timestamp`, `hs_call_body`, `hs_call_outcome`, `hubspot_owner_id`, `firstname`, `lastname`, `email`, `phone` and `hs_country_region`.
 - **Data Normalization:** 🧹
     - Remove HTML tags and special characters.
     - Map HubSpot outcome UUIDs to readable strings.
     - Fetch associated contact details (name, email, phone).
 - **Deduplication:** Check against stored engagement IDs to prevent double-processing. 🚫
 
-### 🔹 Phase 2: AI Scoring and Intelligence
+### 🔹 Phase 2: Intelligence and Conditional AI Processing
 *Model: Gemini 2.5 Flash.* 🤖
+To optimize computational resources and API costs, the pipeline implements a **conditional logic filter** before the analysis stage:
 
+- **Interaction Filtering:** Only calls with a `Connected` outcome are sent to the AI engine. 🎯
+- **Resource Optimization:** Non-interactive calls (Busy, No Answer, Wrong Number, etc.) bypass the AI layer and are recorded directly in Google Sheets. This ensures the LLM only processes records where a meaningful conversation between the agent and contact took place. 💡
 System prompt design positions the model as a **Non-QM mortgage expert** for product identification and semantic intent analysis.
 
 **Scoring logic:**
@@ -89,9 +92,9 @@ All records are appended to **Google Sheets**, including original notes, AI scor
 
 
 **KPI Dashboard:**
+- 📌 KPI's; `Total Leads`, `Hot/Warm/Cold` distribution, `Average Interest Score`, and `Automation Volume` (Emails drafted/sent).
 - 📈 Lead conversion funnel (calls -> qualified -> hot).
-- 📊 Interest score distribution and Product demand pie charts.
-- 🗺️ Geographic heatmap (state-level analysis).
+- 📊 Interest score distribution, Leads Proces Over Time and Product demand pie charts.
 - 📞 Outbound Calls by Outcome analysis.
 
 ---
