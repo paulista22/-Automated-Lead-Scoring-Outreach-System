@@ -29,7 +29,7 @@ SCOPES = [
 SHEET_COLUMNS = [
     "Timestamp", "Contact ID", "Call ID", "Contact Name", "Email", "Phone",
     "Country/Region", "Agent", "Call Date", "Outcome", "Raw Notes",
-    "Product", "Interest Score", "Level Intent", "Loan Amount",
+    "Product", "Interest Score", "Intent Level", "Loan Amount",
     "Urgency", "AI Summary", "Is Hot Lead",
     "Email Body", "Email Status", "Subject", "Email Time"
 ]
@@ -95,9 +95,12 @@ def compute_kpis(df: pd.DataFrame) -> dict:
     email_col = "Email Status" if "Email Status" in df.columns else "Email Sent"
 
     intent = df[intent_col].fillna("").astype(str).str.strip().str.lower()
-    hot_count = int((intent == "hot").sum())
-    warm_count = int(intent.isin(["high", "medium", "warm", "lukewarm"]).sum())
-    cold_count = int(max(len(df) - hot_count - warm_count, 0))
+    hot_mask = intent.str.contains(r"\bhot\b", regex=True)
+    warm_mask = intent.str.contains(r"\b(high|medium|warm|lukewarm)\b", regex=True)
+
+    hot_count = int(hot_mask.sum())
+    warm_count = int((~hot_mask & warm_mask).sum())
+    cold_count = int((~hot_mask & ~warm_mask).sum())
 
     emails = df[email_col].fillna("").astype(str).str.lower().isin(["sent", "draft"])
 
@@ -124,7 +127,7 @@ def compute_agent_performance(df: pd.DataFrame) -> pd.DataFrame:
         .agg(
             Total_Calls=("Call ID", "count"),
             Avg_Score=("Interest Score", "mean"),
-            Hot_Leads=(intent_col, lambda x: (x.fillna("").astype(str).str.lower() == "hot").sum()),
+            Hot_Leads=(intent_col, lambda x: x.fillna("").astype(str).str.lower().str.contains(r"\bhot\b").sum()),
             Warm_Leads=(intent_col, lambda x: x.fillna("").astype(str).str.lower().isin(["high", "medium", "warm", "lukewarm"]).sum()),
             Products=(product_col, lambda x: x.mode().iloc[0] if not x.mode().empty else "N/A"),
         )
@@ -161,6 +164,7 @@ def _get_gspread_client() -> gspread.Client:
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Coerces dtypes and fills NaNs for a clean, ready-to-use DataFrame."""
     # Ensure all expected columns are present
+    df.columns = df.columns.str.strip()
     for col in SHEET_COLUMNS:
         if col not in df.columns:
             df[col] = ""
@@ -177,9 +181,8 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Drop fully empty rows
     df = df.dropna(how="all")
-    df['Intent Level'] = df['Level Intent']
-    df['Product Type'] = df['Product']
-    df['Agent Name'] = df['Agent']
+    df['Product Type'] = df.get('Product Type', df.get('Product', ''))
+    df['Agent Name'] = df.get('Agent Name', df.get('Agent', ''))
     df['Country/Region'] = df['Country/Region']
     
     return df

@@ -70,14 +70,16 @@ def _load_data(spreadsheet_id: str) -> pd.DataFrame:
     # 2. COLUMN MAPPING (Based on actual Google Sheets column names)
     # Left: Exact column name in Google Sheets | Right: Name used by app.py
     column_map = {
-        'Timestamp': 'Call Date',
-        'Level Intent': 'Intent Level',   # In your sheet this column is "Level Intent"
+        'Intent Level': 'Intent Level',   # In your sheet this column is "Intent Level"
         'Interest Score': 'Interest Score', 
         'Product': 'Product Type',       # In your sheet this column is "Product"
         'Contact Name': 'Contact Name',
         'Agent': 'Agent Name',           # In your sheet this column is "Agent"
         'Loan Amount': 'Loan Amount',
-        'AI Summary': 'AI Summary'
+        'AI Summary': 'AI Summary',
+        'Urgency': 'Urgency Indicators',
+        'Email Status': 'Email Sent',
+        'Subject': 'Email Subject',
     }
     
     # Create aliases only when the target column is missing.
@@ -103,14 +105,14 @@ def _load_data(spreadsheet_id: str) -> pd.DataFrame:
 
     # 3. DATA CLEANUP (Essential to prevent chart errors)
     if not df.empty:
-        # Ensure dates are datetime objects
+        # Asegurar fechas y números...
         df['Call Date'] = pd.to_datetime(df['Call Date'], errors='coerce')
-        
-        # Ensure scores are numeric (in case of any stray text values)
         df['Interest Score'] = pd.to_numeric(df['Interest Score'], errors='coerce').fillna(0)
-        
-        # Ensure loan amounts are numeric for aggregation
         df['Loan Amount'] = pd.to_numeric(df['Loan Amount'], errors='coerce').fillna(0)
+        
+        # ELIMINAR ESPACIOS EN BLANCO Y ESTANDARIZAR FORMATO PARA QUE NO FALLE EL CONTEO
+        if 'Intent Level' in df.columns:
+            df['Intent Level'] = df['Intent Level'].astype(str).str.strip().str.title()
 
     return df
 
@@ -136,8 +138,8 @@ def _render_sidebar(df: pd.DataFrame) -> pd.DataFrame:
     if pd.isna(max_date):
         max_date = datetime.today()
 
-    date_from = st.sidebar.date_input("From", value=min_date, min_value=min_date, max_value=max_date)
-    date_to = st.sidebar.date_input("To", value=max_date, min_value=min_date, max_value=max_date)
+    date_from = st.sidebar.date_input("From", value=min_date)
+    date_to = st.sidebar.date_input("To", value=max_date)
 
     # Product filter
     st.sidebar.subheader("🏷️ Product Type")
@@ -217,7 +219,8 @@ def _page_kpi_dashboard(df: pd.DataFrame):
                 kpis["hot_leads"],
             ],
         })
-        fig_funnel = go.Figure(
+        fig_funnel = go.Figure()
+        fig_funnel.add_trace(
             go.Funnel(
                 y=funnel_data["Stage"],
                 x=funnel_data["Count"],
@@ -285,8 +288,8 @@ def _page_kpi_dashboard(df: pd.DataFrame):
                 "High": "#f59e0b",   # Naranja para High
                 "Medium": "#3b82f6", # Azul para Medium
                 "Low": "#6b7280",    # Gris para Low
-           },
-           barmode="stack",
+            },
+            barmode="stack",
         )
         fig_line.update_layout(
             height=350, margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor="rgba(0,0,0,0)"
